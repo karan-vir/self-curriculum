@@ -22,6 +22,7 @@
   --bad: #e34948;
   --bad-bg: #fbe3e2;
   --ok-ink: #15181d;
+  --good: #008300;
   --display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
   --body: "Source Serif 4", Georgia, "Times New Roman", serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -31,14 +32,14 @@
     --bg: #121418; --surface: #1a1a19; --ink: #eeeee9; --ink-2: #b9bcc2; --ink-3: #8a8f98;
     --rule: #33363d; --rule-soft: #26282d; --band: #1d2a3b;
     --s1: #3987e5; --s2: #d95926; --s3: #199e70; --seq: #5598e7; --on-seq: #0d1420;
-    --bad: #e66767; --bad-bg: #4a2224; --ok-ink: #eeeee9; color-scheme: dark;
+    --bad: #e66767; --bad-bg: #4a2224; --ok-ink: #eeeee9; --good: #4cb85c; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #121418; --surface: #1a1a19; --ink: #eeeee9; --ink-2: #b9bcc2; --ink-3: #8a8f98;
   --rule: #33363d; --rule-soft: #26282d; --band: #1d2a3b;
   --s1: #3987e5; --s2: #d95926; --s3: #199e70; --seq: #5598e7; --on-seq: #0d1420;
-  --bad: #e66767; --bad-bg: #4a2224; --ok-ink: #eeeee9; color-scheme: dark;
+  --bad: #e66767; --bad-bg: #4a2224; --ok-ink: #eeeee9; --good: #4cb85c; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body {
@@ -130,6 +131,38 @@ th:first-child, td:first-child { text-align: left; }
 .sum .model .w { background: var(--bad-bg); color: var(--bad); font-weight: 600; border-radius: 2px; }
 .ex p { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
 
+.view { display: grid; gap: 56px; }
+[hidden] { display: none !important; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); margin-top: -32px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 3; }
+.tabs button { font: 600 15px var(--display); color: var(--ink-2); background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 14px 10px; cursor: pointer; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--s1); }
+.tabs button:hover { color: var(--ink); }
+.tabs button:focus-visible, .controls :focus-visible, .pager button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+.tabs .count { font: 500 12px var(--mono); color: var(--ink-3); margin-left: 4px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+
+.prompt-box pre { font: 13px/1.5 var(--mono); background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; margin: 10px 0 0; white-space: pre-wrap; word-break: break-word; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end; }
+.ctl { display: grid; gap: 4px; font: 600 12px var(--display); color: var(--ink-3); letter-spacing: 0.03em; min-width: 0; }
+.ctl.grow { flex: 1 1 180px; }
+.ctl select, .ctl input { font: 14px var(--display); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 5px; padding: 8px 10px; min-width: 0; width: 100%; }
+.result-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
+.pager { display: flex; align-items: center; gap: 10px; }
+.pager button { font: 500 13px var(--display); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 5px; padding: 6px 12px; cursor: pointer; }
+.pager button:disabled { opacity: 0.4; cursor: default; }
+.samples-wrap { margin-top: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
+table.samples td, table.samples th { padding: 8px 12px; }
+table.samples td.in { color: var(--ink-2); }
+table.samples td.rep { font-weight: 600; letter-spacing: 0.03em; }
+table.samples .w { background: var(--bad-bg); color: var(--bad); border-radius: 2px; }
+table.samples td.res { text-align: left; font-family: var(--display); }
+table.samples th:last-child { text-align: left; }
+.chip { display: inline-flex; gap: 6px; align-items: center; font: 500 12px var(--display); }
+.chip.ok { color: var(--good); }
+.chip.bad { color: var(--bad); }
+table.samples tbody tr:hover { background: var(--rule-soft); }
+.empty { text-align: center !important; color: var(--ink-3); padding: 28px !important; font-family: var(--display) !important; }
+
 .callout { border-left: 3px solid var(--s1); padding: 4px 0 4px 16px; }
 footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 @media (prefers-reduced-motion: no-preference) { .hit { transition: opacity .12s; } }
@@ -148,6 +181,13 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     </div>
     <p class="meta">Qwen/Qwen2.5-0.5B-Instruct · greedy decoding · 200 problems per difficulty · run 1 Nov 2026 · <a href="https://github.com/karan-vir/self-curriculum">karan-vir/self-curriculum</a></p>
   </header>
+
+  <nav class="tabs" role="tablist" aria-label="Report views">
+    <button role="tab" id="tab-report" aria-controls="view-report" aria-selected="true" data-view="report">Report</button>
+    <button role="tab" id="tab-samples" aria-controls="view-samples" aria-selected="false" data-view="samples">Samples <span class="count">1,800</span></button>
+  </nav>
+
+  <div id="view-report" class="view" role="tabpanel" aria-labelledby="tab-report">
 
   <section class="prose">
     <h2><span class="sec">1</span>Why this baseline matters</h2>
@@ -179,7 +219,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
       <li><b>Classify errors.</b> Every wrong answer is sorted into one of three types and compared digit by digit, column by column, against the true sum.</li>
     </ol>
     <dl class="defs" style="margin-top:20px">
-      <dt>One digit off</dt><dd>Same length as the true sum, and the difference is a single digit times a power of ten (1294 vs 1194).</dd>
+      <dt>One digit off</dt><dd>Same length as the true sum, and exactly one column is wrong (1294 vs 1194).</dd>
       <dt>Several digits off</dt><dd>Same length, but two or more columns are wrong.</dd>
       <dt>Wrong length</dt><dd>The reply has more or fewer digits than the true sum (109 for 99).</dd>
       <dt>Phantom carry</dt><dd>Exactly one column is 1 too high, and no carry actually comes into that column.</dd>
@@ -208,7 +248,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
       <div class="fsub">Wrong answers out of 200 at each difficulty, split by error type.</div>
       <div class="legend" id="err-legend"></div>
       <div class="chart" id="err"></div>
-      <figcaption>Through 7 digits, the largest group is answers with a single digit off. From 8 digits, answers with several wrong digits take over: 68% of errors at 8 digits and 73% at 9.</figcaption>
+      <figcaption>Through 5 digits, most wrong answers have a single wrong digit. The two types are level at 6 digits, and from 7 digits answers with several wrong digits take over: 73% of errors at 8 digits and 78% at 9.</figcaption>
     </figure>
 
     <figure>
@@ -239,7 +279,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <ol class="insights">
       <li><h3>The edge is wide and well placed.</h3><p>Accuracy declines gradually instead of dropping off a cliff, so the 30–70% band picks out real difficulties (5 and 6 digits) and the empty-edge fallback is unlikely to trigger in round 1. Arm A has four harder levels above the edge to grow into.</p></li>
       <li><h3>Digit count is a sound difficulty knob.</h3><p>Accuracy doesn't change with the number of carries but falls steeply with length. Using operand length as the difficulty axis measures what actually makes the problem hard for this model.</p></li>
-      <li><h3>Short sums fail on carry bookkeeping.</h3><p>Below 6 digits, 70% of errors are a single digit off, most often by exactly 1 in a column where a carry was invented or lost. Phantom carries are the more common of the two (107 vs 68). Training on its own correct answers should fix these first.</p></li>
+      <li><h3>Short sums fail on carry bookkeeping.</h3><p>Below 6 digits, 60% of errors have a single wrong digit, most often by exactly 1 in a column where a carry was invented or lost. Phantom carries are the more common of the two (107 vs 68). Training on its own correct answers should fix these first.</p></li>
       <li><h3>Long sums fail on keeping columns straight.</h3><p>At 8+ digits even the units column, which needs no carry, goes wrong over a third of the time, and errors are spread across every column. That pattern points to the model losing track of which digits line up, not to faulty carry rules.</p></li>
       <li><h3>The top of the range is at the floor.</h3><p>8 digits (8.5%) and 9 digits (10.0%) can't be told apart; their intervals overlap almost completely. Gains up there will show late and need more than 200 test problems to resolve.</p></li>
     </ol>
@@ -261,6 +301,60 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
       <li><b>Report results per difficulty, not only overall.</b> Overall accuracy will hide whether gains come from the edge or from the levels the model already handles.</li>
     </ul>
   </section>
+
+  </div>
+
+  <div id="view-samples" class="view" role="tabpanel" aria-labelledby="tab-samples" hidden>
+    <section>
+      <div class="prose stack">
+        <h2>Inputs and outputs</h2>
+        <p>Every held-out problem with the model's reply exactly as it was generated. Filter by length or outcome, search for a number, or shuffle the order to review a random sample.</p>
+      </div>
+      <details class="prompt-box">
+        <summary>Exact prompt sent to the model (example: 23821 + 28970)</summary>
+        <pre id="prompt-text"></pre>
+      </details>
+
+      <div class="controls">
+        <label class="ctl"><span>Digits</span>
+          <select id="f-digits"><option value="">All</option></select>
+        </label>
+        <label class="ctl"><span>Outcome</span>
+          <select id="f-kind">
+            <option value="">All</option>
+            <option value="ok">Correct</option>
+            <option value="wrong">Any wrong</option>
+            <option value="one">One digit off</option>
+            <option value="multi">Several digits off</option>
+            <option value="length">Wrong length</option>
+          </select>
+        </label>
+        <label class="ctl grow"><span>Search numbers</span>
+          <input id="f-q" type="search" inputmode="numeric" placeholder="e.g. 9933" autocomplete="off">
+        </label>
+        <label class="ctl"><span>Order</span>
+          <select id="f-order"><option value="id">Test-set order</option><option value="rand">Shuffled</option></select>
+        </label>
+      </div>
+
+      <div class="result-bar">
+        <span id="s-count" class="num"></span>
+        <span class="pager">
+          <button id="p-prev" type="button">Previous</button>
+          <span id="p-info" class="num"></span>
+          <button id="p-next" type="button">Next</button>
+        </span>
+      </div>
+
+      <div class="tbl-wrap samples-wrap">
+        <table class="samples">
+          <thead><tr><th>#</th><th>Digits</th><th>Input</th><th>True sum</th><th>Model reply</th><th>Result</th></tr></thead>
+          <tbody id="s-body"></tbody>
+        </table>
+      </div>
+      <p class="meta">Highlighted digits differ from the true sum, compared column by column from the right.</p>
+    </section>
+  </div>
 
   <footer class="meta">Source: <code>results/baseline.json</code> (every completion), produced by <code>scripts/baseline.py</code>. Model weights from Hugging Face, Qwen/Qwen2.5-0.5B-Instruct.</footer>
 </div>
@@ -414,5 +508,63 @@ function bindHit(node, tip, host, html, anchor) {
       <p>${e.note}</p>
     </div>`;
   }).join("");
+})();
+
+/* 6. tabs + samples */
+(function () {
+  const views = { report: document.getElementById("view-report"), samples: document.getElementById("view-samples") };
+  const tabs = [...document.querySelectorAll(".tabs button")];
+  function show(name, push) {
+    if (!views[name]) name = "report";
+    for (const k in views) views[k].hidden = k !== name;
+    tabs.forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === name)));
+    if (push) { try { history.replaceState(null, "", "#" + name); } catch (e) {} }
+  }
+  tabs.forEach(t => t.addEventListener("click", () => { show(t.dataset.view, true); window.scrollTo({ top: document.querySelector(".tabs").offsetTop - 8 }); }));
+  show((location.hash || "").slice(1) || "report", false);
+
+  document.getElementById("prompt-text").textContent = D.prompt;
+  const fd = document.getElementById("f-digits");
+  for (let d = 2; d <= 10; d++) fd.insertAdjacentHTML("beforeend", `<option value="${d}">${d}</option>`);
+  const fk = document.getElementById("f-kind"), fq = document.getElementById("f-q"), fo = document.getElementById("f-order");
+  const body = document.getElementById("s-body"), cnt = document.getElementById("s-count");
+  const prev = document.getElementById("p-prev"), next = document.getElementById("p-next"), info = document.getElementById("p-info");
+  const KIND = { ok: "Correct", one: "One digit off", multi: "Several digits off", length: "Wrong length" };
+  const PAGE = 50;
+  let page = 0, rows = [], shuffled = null;
+  const fmt = n => n.toLocaleString("en-US");
+  function mark(got, ans) {
+    const g = got.trim(), L = Math.max(g.length, ans.length), gp = g.padStart(L, " "), ap = ans.padStart(L, " ");
+    return [...gp].map((c, i) => c === " " ? "" : c !== ap[i] ? `<span class="w">${c}</span>` : c).join("");
+  }
+  function apply() {
+    const d = +fd.value || 0, k = fk.value, q = fq.value.replace(/[^\d]/g, "");
+    let src = D.samples;
+    if (fo.value === "rand") {
+      if (!shuffled) { shuffled = src.slice(); for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; } }
+      src = shuffled;
+    }
+    rows = src.filter(r => (!d || r[1] === d) && (!k || (k === "wrong" ? r[6] !== "ok" : r[6] === k)) &&
+      (!q || String(r[2]).includes(q) || String(r[3]).includes(q) || String(r[4]).includes(q) || r[5].includes(q)));
+    page = 0; render();
+  }
+  function render() {
+    const pages = Math.max(1, Math.ceil(rows.length / PAGE));
+    page = Math.min(page, pages - 1);
+    const slice = rows.slice(page * PAGE, page * PAGE + PAGE);
+    const wrong = rows.filter(r => r[6] !== "ok").length;
+    cnt.textContent = `${fmt(rows.length)} of ${fmt(D.samples.length)} problems · ${fmt(rows.length - wrong)} correct, ${fmt(wrong)} wrong`;
+    info.textContent = rows.length ? `${page + 1} / ${pages}` : "";
+    prev.disabled = page === 0; next.disabled = page >= pages - 1;
+    body.innerHTML = slice.length ? slice.map(r => {
+      const ok = r[6] === "ok";
+      return `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="in">${r[2]} + ${r[3]}</td><td>${r[4]}</td><td class="rep">${ok ? r[5].trim() : mark(r[5], String(r[4]))}</td><td class="res"><span class="chip ${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"} ${KIND[r[6]]}</span></td></tr>`;
+    }).join("") : `<tr><td colspan="6" class="empty">No problems match these filters. Clear the search or pick another outcome.</td></tr>`;
+  }
+  [fd, fk, fo].forEach(e => e.addEventListener("change", () => { if (e === fo && fo.value === "rand") shuffled = null; apply(); }));
+  fq.addEventListener("input", apply);
+  prev.addEventListener("click", () => { page--; render(); });
+  next.addEventListener("click", () => { page++; render(); });
+  apply();
 })();
 </script>
