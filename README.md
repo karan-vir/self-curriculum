@@ -50,6 +50,16 @@ A **self-curriculum** closes the loop. Each round, the model is tested across di
 - Secondary: the highest difficulty with at least 50% accuracy, per round.
 - Success signal: Arm A's curve sits above Arm B's at matched rounds, or it reaches more digits.
 
+## Baseline
+
+Untrained `Qwen2.5-0.5B-Instruct`, greedy decoding, 200 held-out problems per difficulty (`uv run python scripts/baseline.py`, 30 s on an M4 Pro via MPS):
+
+| Digits | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Accuracy | 91.5% | 87.5% | 74.0% | **58.5%** | **39.5%** | 23.5% | 8.5% | 10.0% | 3.0% |
+
+Overall 44.0%. The starting edge (30–70%) is **5–6 digits**. Every wrong completion parsed as a number; the errors are arithmetic, mostly dropped or extra carries (e.g. 759 → 1759). Full completions are in `results/baseline.json`.
+
 ## Repository layout
 
 ```
@@ -57,8 +67,11 @@ src/selfcurr/
   tasks.py        problem generator, prompt format, answer parser, checker
   curriculum.py   edge selection (Arm A) and fixed mix (Arm B)
   config.py       experiment settings
+  model.py        model loading, batched generation, evaluation
 scripts/
   make_test_set.py   writes the frozen held-out set to data/test_set.jsonl
+  baseline.py        untrained-model accuracy per difficulty
+results/          committed experiment results
 tests/            unit tests for the generator, checker and curriculum
 ```
 
@@ -76,7 +89,7 @@ uv run python scripts/make_test_set.py
 ## Roadmap
 
 - [x] Week 1, days 1–2: generator, checker, frozen test set
-- [ ] Baseline accuracy per difficulty for the untrained model
+- [x] Baseline accuracy per difficulty for the untrained model
 - [ ] Days 3–4: Arm A loop, one round end to end
 - [ ] Days 5–6: Arm B with a matched budget
 - [ ] Day 7: several rounds of both arms, plots
