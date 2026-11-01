@@ -1,0 +1,418 @@
+<title>Qwen 0.5B Addition Baseline</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one lab-notebook column (~68ch prose), figures break slightly wider; numbers always in mono, right-aligned like column addition. */
+:root {
+  --bg: #f5f6f8;
+  --surface: #fcfcfb;
+  --ink: #15181d;
+  --ink-2: #4f5561;
+  --ink-3: #7b818c;
+  --rule: #dcdfe5;
+  --rule-soft: #e9ebef;
+  --band: #e6eef9;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --seq: #1c5cab;
+  --on-seq: #ffffff;
+  --bad: #e34948;
+  --bad-bg: #fbe3e2;
+  --ok-ink: #15181d;
+  --display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121418; --surface: #1a1a19; --ink: #eeeee9; --ink-2: #b9bcc2; --ink-3: #8a8f98;
+    --rule: #33363d; --rule-soft: #26282d; --band: #1d2a3b;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --seq: #5598e7; --on-seq: #0d1420;
+    --bad: #e66767; --bad-bg: #4a2224; --ok-ink: #eeeee9; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121418; --surface: #1a1a19; --ink: #eeeee9; --ink-2: #b9bcc2; --ink-3: #8a8f98;
+  --rule: #33363d; --rule-soft: #26282d; --band: #1d2a3b;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --seq: #5598e7; --on-seq: #0d1420;
+  --bad: #e66767; --bad-bg: #4a2224; --ok-ink: #eeeee9; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 17px/1.6 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+}
+.page { max-width: 920px; margin: 0 auto; display: grid; gap: 56px; }
+.prose { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 26px; font-weight: 600; }
+h3 { font-size: 18px; font-weight: 600; }
+p { margin: 0; }
+.stack { display: grid; gap: 16px; }
+.eyebrow { font: 600 12px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.lede { font-size: 20px; line-height: 1.5; color: var(--ink); max-width: 62ch; }
+.meta { font: 13px/1.5 var(--mono); color: var(--ink-3); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+a { color: var(--s1); }
+code { font: 0.86em var(--mono); background: var(--rule-soft); padding: 1px 5px; border-radius: 3px; }
+
+header { display: grid; gap: 20px; border-bottom: 1px solid var(--rule); padding-bottom: 32px; }
+.facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule); }
+.fact { padding: 16px 16px 4px 0; display: grid; gap: 4px; min-width: 0; }
+.fact + .fact { padding-left: 16px; border-left: 1px solid var(--rule); }
+.fact b { font: 600 28px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.fact span { font: 13px/1.35 var(--display); color: var(--ink-2); }
+@media (max-width: 640px) {
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fact:nth-child(3) { padding-left: 0; border-left: 0; }
+}
+
+section { display: grid; gap: 20px; }
+section > h2 { display: flex; gap: 12px; align-items: baseline; }
+section > h2 .sec { font: 500 14px var(--mono); color: var(--ink-3); }
+
+ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
+ol.steps { margin: 0; padding-left: 1.4em; display: grid; gap: 10px; }
+dl.defs { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 10px 20px; }
+dl.defs dt { font: 600 14px/1.6 var(--display); }
+dl.defs dd { margin: 0; }
+@media (max-width: 560px) { dl.defs { grid-template-columns: 1fr; gap: 2px; } dl.defs dd { margin-bottom: 10px; } }
+
+figure { margin: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 20px 20px 16px; display: grid; gap: 12px; min-width: 0; }
+figure .ftitle { font: 600 16px/1.3 var(--display); }
+figure .fsub { font-size: 15px; color: var(--ink-2); }
+figcaption { font-size: 14px; color: var(--ink-2); line-height: 1.5; }
+.chart { position: relative; width: 100%; overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; min-width: 520px; }
+.chart svg text { font-family: var(--mono); font-size: 12px; fill: var(--ink-2); }
+.chart svg .axis-title { font-family: var(--display); font-size: 12px; fill: var(--ink-3); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 13px var(--display); color: var(--ink-2); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font: 12px/1.45 var(--mono); padding: 7px 9px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); z-index: 2; }
+.tip b { font-weight: 600; }
+
+details { font-size: 14px; }
+details summary { cursor: pointer; font: 500 13px var(--display); color: var(--ink-2); }
+details summary:focus-visible, .hit:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+.tbl-wrap { overflow-x: auto; margin-top: 10px; }
+table { border-collapse: collapse; font: 13px var(--mono); font-variant-numeric: tabular-nums; width: 100%; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--rule-soft); white-space: nowrap; }
+th { font: 600 12px var(--display); color: var(--ink-3); border-bottom-color: var(--rule); }
+th:first-child, td:first-child { text-align: left; }
+
+.flat td.barcell { width: 50%; }
+.minibar { height: 10px; background: var(--rule-soft); border-radius: 2px; position: relative; }
+.minibar > span { position: absolute; inset: 0 auto 0 0; background: var(--s1); border-radius: 2px; }
+
+.insights { counter-reset: ins; display: grid; gap: 22px; margin: 0; padding: 0; list-style: none; }
+.insights li { display: grid; grid-template-columns: 34px 1fr; gap: 4px 12px; }
+.insights li::before { counter-increment: ins; content: counter(ins); font: 600 15px/1.7 var(--mono); color: var(--s1); grid-row: span 2; }
+.insights h3 { font-size: 17px; line-height: 1.4; }
+.insights p { color: var(--ink-2); }
+
+.examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 680px) { .examples { grid-template-columns: 1fr; } }
+.ex { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.ex .tag { font: 600 11px/1 var(--display); letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); display: flex; justify-content: space-between; }
+.sum { font: 15px/1.5 var(--mono); font-variant-numeric: tabular-nums; display: grid; grid-template-columns: auto auto; justify-content: start; column-gap: 12px; overflow-x: auto; }
+.sum .lbl { font: 12px/1.9 var(--display); color: var(--ink-3); text-align: right; }
+.sum .row { text-align: right; white-space: pre; letter-spacing: 0.06em; }
+.sum .line { grid-column: 2; border-top: 1px solid var(--ink-3); height: 0; margin: 2px 0; }
+.sum .model { color: var(--ok-ink); }
+.sum .model .w { background: var(--bad-bg); color: var(--bad); font-weight: 600; border-radius: 2px; }
+.ex p { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+
+.callout { border-left: 3px solid var(--s1); padding: 4px 0 4px 16px; }
+footer { border-top: 1px solid var(--rule); padding-top: 20px; }
+@media (prefers-reduced-motion: no-preference) { .hit { transition: opacity .12s; } }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">Self-curriculum experiment · Baseline report</div>
+    <h1>How well does Qwen 0.5B add before any training?</h1>
+    <p class="lede">The untrained model gets <b class="num">44.0%</b> of held-out additions right. Accuracy falls smoothly from 91.5% on 2-digit sums to 3.0% on 10-digit sums, which puts its starting edge at <b>5–6 digits</b>, the band Arm A will train on in round 1.</p>
+    <div class="facts">
+      <div class="fact"><b>44.0%</b><span>overall accuracy, 792 of 1,800</span></div>
+      <div class="fact"><b>5–6</b><span>digits in the 30–70% edge band</span></div>
+      <div class="fact"><b>1,008</b><span>wrong answers, all parsed as numbers</span></div>
+      <div class="fact"><b>30 s</b><span>full evaluation on an M4 Pro (MPS)</span></div>
+    </div>
+    <p class="meta">Qwen/Qwen2.5-0.5B-Instruct · greedy decoding · 200 problems per difficulty · run 1 Nov 2026 · <a href="https://github.com/karan-vir/self-curriculum">karan-vir/self-curriculum</a></p>
+  </header>
+
+  <section class="prose">
+    <h2><span class="sec">1</span>Why this baseline matters</h2>
+    <div class="stack">
+      <p>The experiment asks whether a small model learns faster when it picks its own training problems at the edge of its ability than when it trains on a fixed mix, given the same training budget. Before either arm runs, we need to know where the edge is, how sharp it is, and what kind of mistakes the model makes, because Arm A trains only on the model's own correct answers at that edge.</p>
+      <p>This report covers the untrained model only. No fine-tuning has happened yet.</p>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2><span class="sec">2</span>Assumptions</h2>
+    <ul class="plain">
+      <li><b>Difficulty means operand length.</b> Both operands have exactly N digits (no leading zeros), N from 2 to 10. Carries are not controlled; they occur as often as random digits produce them.</li>
+      <li><b>The prompt is fixed.</b> “Compute the sum. Reply with the number only.” followed by <code>a + b =</code>, wrapped in Qwen's chat template, which also adds Qwen's default system message.</li>
+      <li><b>The first integer in the reply is the answer.</b> Commas are stripped. Text after the first number is ignored, so a reply that states the right number and then rambles counts as correct.</li>
+      <li><b>Greedy decoding, 16 new tokens.</b> Enough for an 11-digit sum. Greedy makes the run deterministic for a given machine.</li>
+      <li><b>Half precision on Apple's GPU.</b> The model ran in float16 on MPS. CUDA in bfloat16 could shift individual answers, so treat differences of a point or two between machines as noise.</li>
+      <li><b>One test sample.</b> 200 problems per difficulty is one draw. At 50% accuracy, that gives a 95% interval of about ±7 points.</li>
+    </ul>
+  </section>
+
+  <section class="prose">
+    <h2><span class="sec">3</span>Methodology</h2>
+    <ol class="steps">
+      <li><b>Freeze a held-out set.</b> <code>scripts/make_test_set.py</code> draws 200 distinct problems per difficulty with seed 1234 (1,800 total) and writes them to <code>data/test_set.jsonl</code>. Problems are deduplicated regardless of operand order, and training later rejects any problem in this set.</li>
+      <li><b>Generate.</b> <code>scripts/baseline.py</code> runs the model on all 1,800 prompts in batches of 64 with left padding.</li>
+      <li><b>Check exactly.</b> Each reply is parsed to an integer and compared with <code>a + b</code>. No partial credit.</li>
+      <li><b>Summarise.</b> Accuracy per difficulty with 95% Wilson intervals, then the edge: difficulties with accuracy in [0.3, 0.7].</li>
+      <li><b>Classify errors.</b> Every wrong answer is sorted into one of three types and compared digit by digit, column by column, against the true sum.</li>
+    </ol>
+    <dl class="defs" style="margin-top:20px">
+      <dt>One digit off</dt><dd>Same length as the true sum, and the difference is a single digit times a power of ten (1294 vs 1194).</dd>
+      <dt>Several digits off</dt><dd>Same length, but two or more columns are wrong.</dd>
+      <dt>Wrong length</dt><dd>The reply has more or fewer digits than the true sum (109 for 99).</dd>
+      <dt>Phantom carry</dt><dd>Exactly one column is 1 too high, and no carry actually comes into that column.</dd>
+      <dt>Dropped carry</dt><dd>Exactly one column is 1 too low, and a carry should have come into that column.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <div class="prose stack">
+      <h2><span class="sec">4</span>Results</h2>
+      <p>Accuracy drops 13 to 19 points per extra digit from 3 to 7 digits, then flattens near zero from 8 digits up. Two difficulties fall inside the edge band.</p>
+    </div>
+
+    <figure>
+      <div class="ftitle">Accuracy by number of digits</div>
+      <div class="fsub">Share of 200 held-out problems answered exactly; whiskers are 95% Wilson intervals. The shaded band is the 30–70% edge.</div>
+      <div class="chart" id="acc"></div>
+      <details>
+        <summary>Show as a table</summary>
+        <div class="tbl-wrap"><table id="acc-table"></table></div>
+      </details>
+    </figure>
+
+    <figure>
+      <div class="ftitle">What kind of wrong</div>
+      <div class="fsub">Wrong answers out of 200 at each difficulty, split by error type.</div>
+      <div class="legend" id="err-legend"></div>
+      <div class="chart" id="err"></div>
+      <figcaption>Through 7 digits, the largest group is answers with a single digit off. From 8 digits, answers with several wrong digits take over: 68% of errors at 8 digits and 73% at 9.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="ftitle">Where in the number the mistakes land</div>
+      <div class="fsub">Error rate per column, for answers of the right length. Columns are aligned as in written addition, with units on the right; the leftmost cell in each row is the extra digit a carry can create.</div>
+      <div class="chart" id="heat"></div>
+      <figcaption>The units column, which never receives a carry, is almost never wrong up to 4 digits. From 6 digits it starts failing, and at 8 to 10 digits it fails 36–46% of the time. At long lengths errors are spread across the whole number.</figcaption>
+    </figure>
+
+    <div class="examples" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));">
+      <figure>
+        <div class="ftitle">Carries don't predict failure</div>
+        <div class="fsub">Accuracy on 4–6 digit problems by how many carries the true sum needs.</div>
+        <div class="tbl-wrap" style="margin-top:0"><table class="flat" id="carry"></table></div>
+        <figcaption>Accuracy is flat at 55–58% whatever the carry count. Length, not carrying, is what makes a problem hard for this model.</figcaption>
+      </figure>
+      <figure>
+        <div class="ftitle">When only one column is wrong by 1</div>
+        <div class="fsub">198 answers have exactly one column off by ±1.</div>
+        <div class="tbl-wrap" style="margin-top:0"><table id="pm"></table></div>
+        <figcaption>Most of these follow carry logic, and phantom carries outnumber dropped ones about 3 to 2. The model also overshoots in general: 641 of the 1,008 wrong answers are too high.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2><span class="sec">5</span>Insights</h2>
+    <ol class="insights">
+      <li><h3>The edge is wide and well placed.</h3><p>Accuracy declines gradually instead of dropping off a cliff, so the 30–70% band picks out real difficulties (5 and 6 digits) and the empty-edge fallback is unlikely to trigger in round 1. Arm A has four harder levels above the edge to grow into.</p></li>
+      <li><h3>Digit count is a sound difficulty knob.</h3><p>Accuracy doesn't change with the number of carries but falls steeply with length. Using operand length as the difficulty axis measures what actually makes the problem hard for this model.</p></li>
+      <li><h3>Short sums fail on carry bookkeeping.</h3><p>Below 6 digits, 70% of errors are a single digit off, most often by exactly 1 in a column where a carry was invented or lost. Phantom carries are the more common of the two (107 vs 68). Training on its own correct answers should fix these first.</p></li>
+      <li><h3>Long sums fail on keeping columns straight.</h3><p>At 8+ digits even the units column, which needs no carry, goes wrong over a third of the time, and errors are spread across every column. That pattern points to the model losing track of which digits line up, not to faulty carry rules.</p></li>
+      <li><h3>The top of the range is at the floor.</h3><p>8 digits (8.5%) and 9 digits (10.0%) can't be told apart; their intervals overlap almost completely. Gains up there will show late and need more than 200 test problems to resolve.</p></li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="prose stack">
+      <h2><span class="sec">6</span>Error examples</h2>
+      <p>Real cases from the run, set out as column addition. Highlighted digits are where the model's answer differs from the true sum.</p>
+    </div>
+    <div class="examples" id="examples"></div>
+  </section>
+
+  <section class="prose">
+    <h2><span class="sec">7</span>What this changes for the next step</h2>
+    <ul class="plain">
+      <li><b>Increase the probe size for edge selection.</b> The plan probes 32 problems per difficulty each round, which gives a ±17-point interval at 50%. That's wide enough to flip 4 or 7 digits in or out of the band at random. 64 per difficulty would cut it to about ±12.</li>
+      <li><b>Track the column heatmap every round.</b> If self-curriculum helps, it should first close the single-column ±1 errors at the edge, then push the units-column failures back to longer lengths.</li>
+      <li><b>Report results per difficulty, not only overall.</b> Overall accuracy will hide whether gains come from the edge or from the levels the model already handles.</li>
+    </ul>
+  </section>
+
+  <footer class="meta">Source: <code>results/baseline.json</code> (every completion), produced by <code>scripts/baseline.py</code>. Model weights from Hugging Face, Qwen/Qwen2.5-0.5B-Instruct.</footer>
+</div>
+
+<script>
+const D = {"acc": [{"d": 2, "k": 183, "n": 200, "p": 0.915, "ci": [0.8681, 0.9463]}, {"d": 3, "k": 175, "n": 200, "p": 0.875, "ci": [0.822, 0.9139]}, {"d": 4, "k": 148, "n": 200, "p": 0.74, "ci": [0.6751, 0.7959]}, {"d": 5, "k": 117, "n": 200, "p": 0.585, "ci": [0.5157, 0.6511]}, {"d": 6, "k": 79, "n": 200, "p": 0.395, "ci": [0.3298, 0.4641]}, {"d": 7, "k": 47, "n": 200, "p": 0.235, "ci": [0.1816, 0.2984]}, {"d": 8, "k": 17, "n": 200, "p": 0.085, "ci": [0.0537, 0.1319]}, {"d": 9, "k": 20, "n": 200, "p": 0.1, "ci": [0.0657, 0.1494]}, {"d": 10, "k": 6, "n": 200, "p": 0.03, "ci": [0.0138, 0.0639]}], "err": [{"d": 2, "one": 11, "multi": 3, "length": 3}, {"d": 3, "one": 17, "multi": 4, "length": 4}, {"d": 4, "one": 38, "multi": 2, "length": 12}, {"d": 5, "one": 58, "multi": 16, "length": 9}, {"d": 6, "one": 59, "multi": 43, "length": 19}, {"d": 7, "one": 71, "multi": 66, "length": 16}, {"d": 8, "one": 39, "multi": 124, "length": 20}, {"d": 9, "one": 37, "multi": 131, "length": 12}, {"d": 10, "one": 32, "multi": 115, "length": 47}], "heat": [{"d": 2, "cells": [[0, 197], [11, 197], [9, 121]]}, {"d": 3, "cells": [[1, 196], [7, 196], [12, 196], [6, 129]]}, {"d": 4, "cells": [[1, 188], [14, 188], [14, 188], [18, 188], [1, 122]]}, {"d": 5, "cells": [[10, 191], [30, 191], [21, 191], [17, 191], [23, 191], [2, 121]]}, {"d": 6, "cells": [[25, 181], [37, 181], [48, 181], [36, 181], [24, 181], [31, 181], [10, 118]]}, {"d": 7, "cells": [[42, 184], [41, 184], [45, 184], [54, 184], [37, 184], [36, 184], [26, 184], [4, 117]]}, {"d": 8, "cells": [[76, 180], [94, 180], [64, 180], [58, 180], [81, 180], [54, 180], [28, 180], [38, 180], [7, 119]]}, {"d": 9, "cells": [[87, 188], [75, 188], [78, 188], [46, 188], [42, 188], [79, 188], [45, 188], [31, 188], [30, 188], [1, 119]]}, {"d": 10, "cells": [[55, 153], [82, 153], [58, 153], [53, 153], [43, 153], [64, 153], [61, 153], [50, 153], [31, 153], [37, 153], [2, 79]]}], "carry": [{"c": 0, "k": 15, "n": 26}, {"c": 1, "k": 54, "n": 94}, {"c": 2, "k": 95, "n": 164}, {"c": 3, "k": 90, "n": 159}, {"c": 4, "k": 68, "n": 117}, {"c": 5, "k": 22, "n": 40}], "examples": [{"a": 893, "b": 301, "answer": 1194, "completion": "1294", "digits": 3, "label": "Phantom carry", "note": "Hundreds: 8 + 3 = 11 with no carry coming in, so the digit is 1. The model writes 2, as if a carry had arrived."}, {"a": 23821, "b": 28970, "answer": 52791, "completion": "52891", "digits": 5, "label": "Phantom carry", "note": "Hundreds: 8 + 9 = 17, no carry in, so 7. The model writes 8."}, {"a": 3991, "b": 4779, "answer": 8770, "completion": "8760", "digits": 4, "label": "Dropped carry", "note": "Units 1 + 9 = 10 carries 1. Tens should be 9 + 7 + 1 = 17, so 7. The model loses the carry and writes 6."}, {"a": 646, "b": 684, "answer": 1330, "completion": "1320", "digits": 3, "label": "Dropped carry", "note": "Units 6 + 4 = 10 carries 1. Tens should be 4 + 8 + 1 = 13, so 3. The model writes 2."}, {"a": 55, "b": 44, "answer": 99, "completion": "109", "digits": 2, "label": "Wrong length", "note": "No column carries, yet the model adds a leading 1 and an extra digit."}, {"a": 6870, "b": 3063, "answer": 9933, "completion": "10933", "digits": 4, "label": "Wrong length", "note": "The true sum, 9,933, sits just under 10,000. The model writes 10,933, exactly 1,000 too high, as if the thousands column had carried."}, {"a": 3341, "b": 6861, "answer": 10202, "completion": "9202", "digits": 4, "label": "Wrong length", "note": "The mirror case: thousands should be 3 + 6 + 1 = 10, carrying into a fifth digit. The model drops that carry and writes 9,202."}, {"a": 268758, "b": 833233, "answer": 1101991, "completion": "3104920", "digits": 6, "label": "Many digits wrong", "note": "Right length, but 4 of 7 digits are wrong, including the first. The sum comes apart."}, {"a": 99392897, "b": 18084120, "answer": 117477017, "completion": "117426017", "digits": 8, "label": "Many digits wrong", "note": "The first four and last three digits are right; two digits in the middle drift."}, {"a": 5219419882, "b": 5521934841, "answer": 10741354723, "completion": "10743284723", "digits": 10, "label": "Many digits wrong", "note": "The first four and last four digits are right; a block of three in the middle is wrong."}], "pm": {"phantom": 107, "dropped": 68, "other": 23}, "seconds": 30.0, "model": "Qwen/Qwen2.5-0.5B-Instruct", "total": 1800, "correct": 792};
+const NS = "http://www.w3.org/2000/svg";
+const pct = x => (x * 100).toFixed(1) + "%";
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function tipper(host) {
+  const t = document.createElement("div"); t.className = "tip"; t.hidden = true; host.appendChild(t);
+  return {
+    show(html, x, y) { t.innerHTML = html; t.hidden = false; t.style.left = x + "px"; t.style.top = y + "px"; },
+    hide() { t.hidden = true; }
+  };
+}
+function bindHit(node, tip, host, html, anchor) {
+  node.setAttribute("tabindex", "0"); node.classList.add("hit");
+  const place = () => { const r = node.getBoundingClientRect(), h = host.getBoundingClientRect(); const a = anchor ? anchor(r) : [r.left + r.width / 2, r.top]; tip.show(html, a[0] - h.left + host.scrollLeft, a[1] - h.top); };
+  node.addEventListener("mouseenter", place); node.addEventListener("focus", place);
+  node.addEventListener("mouseleave", tip.hide); node.addEventListener("blur", tip.hide);
+}
+
+/* 1. accuracy with whiskers */
+(function () {
+  const host = document.getElementById("acc");
+  const W = 860, H = 340, m = { l: 52, r: 20, t: 18, b: 46 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Accuracy by digits, from 91.5% at 2 digits to 3.0% at 10 digits" }, host);
+  const xs = d => m.l + (d - 2) / 8 * (W - m.l - m.r - 30) + 15;
+  const ys = p => m.t + (1 - p) * (H - m.t - m.b);
+  el("rect", { x: m.l, y: ys(0.7), width: W - m.l - m.r, height: ys(0.3) - ys(0.7), fill: "var(--band)" }, svg);
+  const bl = el("text", { x: W - m.r - 6, y: ys(0.7) + 16, "text-anchor": "end", class: "axis-title" }, svg); bl.textContent = "edge band 30–70%";
+  for (let v = 0; v <= 1.0001; v += 0.25) {
+    el("line", { x1: m.l, x2: W - m.r, y1: ys(v), y2: ys(v), stroke: "var(--rule-soft)", "stroke-width": 1 }, svg);
+    const t = el("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, svg); t.textContent = (v * 100) + "%";
+  }
+  D.acc.forEach(a => { const t = el("text", { x: xs(a.d), y: H - m.b + 20, "text-anchor": "middle" }, svg); t.textContent = a.d; });
+  const at = el("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", class: "axis-title" }, svg); at.textContent = "digits per operand";
+  el("path", { d: D.acc.map((a, i) => (i ? "L" : "M") + xs(a.d) + " " + ys(a.p)).join(""), fill: "none", stroke: "var(--s1)", "stroke-width": 2 }, svg);
+  const tip = tipper(host);
+  const edge = new Set([5, 6]);
+  D.acc.forEach(a => {
+    const x = xs(a.d);
+    el("line", { x1: x, x2: x, y1: ys(a.ci[1]), y2: ys(a.ci[0]), stroke: "var(--s1)", "stroke-width": 1.5, opacity: 0.55 }, svg);
+    [a.ci[0], a.ci[1]].forEach(v => el("line", { x1: x - 5, x2: x + 5, y1: ys(v), y2: ys(v), stroke: "var(--s1)", "stroke-width": 1.5, opacity: 0.55 }, svg));
+    el("circle", { cx: x, cy: ys(a.p), r: 5.5, fill: edge.has(a.d) ? "var(--s1)" : "var(--surface)", stroke: "var(--s1)", "stroke-width": 2 }, svg);
+    if (edge.has(a.d) || a.d === 2 || a.d === 10) {
+      const lab = el("text", { x: a.d === 10 ? x - 10 : x + 10, y: ys(a.p) - 8, "text-anchor": a.d === 10 ? "end" : "start", style: "font-weight:600;fill:var(--ink)" }, svg); lab.textContent = pct(a.p);
+    }
+    const hit = el("rect", { x: x - 30, y: m.t, width: 60, height: H - m.t - m.b, fill: "transparent" }, svg);
+    bindHit(hit, tip, host, `<b>${a.d} digits</b> · ${pct(a.p)}<br>${a.k} of ${a.n} · 95% CI ${pct(a.ci[0])}–${pct(a.ci[1])}`, r => [r.left + r.width / 2, svg.getBoundingClientRect().top + ys(a.ci[1]) * svg.getBoundingClientRect().height / H]);
+  });
+  document.getElementById("acc-table").innerHTML = "<tr><th>Digits</th><th>Correct</th><th>Accuracy</th><th>95% interval</th><th>Edge</th></tr>" +
+    D.acc.map(a => `<tr><td>${a.d}</td><td>${a.k} / ${a.n}</td><td>${pct(a.p)}</td><td>${pct(a.ci[0])} – ${pct(a.ci[1])}</td><td>${edge.has(a.d) ? "yes" : ""}</td></tr>`).join("");
+})();
+
+/* 2. error composition */
+(function () {
+  const host = document.getElementById("err");
+  const S = [["one", "One digit off", "var(--s1)"], ["multi", "Several digits off", "var(--s2)"], ["length", "Wrong length", "var(--s3)"]];
+  document.getElementById("err-legend").innerHTML = S.map(s => `<span><i style="background:${s[2]}"></i>${s[1]}</span>`).join("");
+  const W = 860, H = 320, m = { l: 52, r: 20, t: 14, b: 46 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Stacked bars of error types per difficulty" }, host);
+  const max = 200, bw = 46, step = (W - m.l - m.r) / D.err.length;
+  const ys = v => m.t + (1 - v / max) * (H - m.t - m.b);
+  for (let v = 0; v <= max; v += 50) {
+    el("line", { x1: m.l, x2: W - m.r, y1: ys(v), y2: ys(v), stroke: "var(--rule-soft)" }, svg);
+    const t = el("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, svg); t.textContent = v;
+  }
+  const at = el("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", class: "axis-title" }, svg); at.textContent = "digits per operand";
+  const tip = tipper(host);
+  D.err.forEach((e, i) => {
+    const cx = m.l + step * i + step / 2; let base = 0;
+    const tot = e.one + e.multi + e.length;
+    S.forEach(([k, name, col], j) => {
+      const v = e[k]; if (!v) return;
+      const y0 = ys(base), y1 = ys(base + v), gap = j ? 1 : 0, top = j === S.length - 1 || S.slice(j + 1).every(s => !e[s[0]]);
+      const h = Math.max(0, y0 - y1 - gap - (base ? 1 : 0));
+      const r = el("path", { d: top ? `M${cx - bw / 2} ${y0 - (base ? 1 : 0)}V${y0 - (base ? 1 : 0) - h + 4}q0 -4 4 -4h${bw - 8}q4 0 4 4V${y0 - (base ? 1 : 0)}Z` : `M${cx - bw / 2} ${y0 - (base ? 1 : 0)}v${-h}h${bw}v${h}Z`, fill: col }, svg);
+      bindHit(r, tip, host, `<b>${e.d} digits · ${name}</b><br>${v} of ${tot} errors (${Math.round(v / tot * 100)}%)`);
+      base += v;
+    });
+    const t = el("text", { x: cx, y: H - m.b + 20, "text-anchor": "middle" }, svg); t.textContent = e.d;
+    const tt = el("text", { x: cx, y: ys(tot) - 7, "text-anchor": "middle", style: "fill:var(--ink)" }, svg); tt.textContent = tot;
+  });
+})();
+
+/* 3. column heatmap */
+(function () {
+  const host = document.getElementById("heat");
+  const cols = 11, cw = 60, ch = 30, lw = 70, top = 30;
+  const W = lw + cols * cw + 10, H = top + D.heat.length * ch + 40;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Error rate by column and number of digits" }, host);
+  const names = ["units", "tens", "hund.", "10³", "10⁴", "10⁵", "10⁶", "10⁷", "10⁸", "10⁹", "10¹⁰"];
+  for (let i = 0; i < cols; i++) { const t = el("text", { x: lw + (cols - 1 - i) * cw + cw / 2, y: top - 10, "text-anchor": "middle" }, svg); t.textContent = names[i]; }
+  const tip = tipper(host);
+  const vmax = 0.55;
+  D.heat.forEach((row, ri) => {
+    const y = top + ri * ch;
+    const lab = el("text", { x: lw - 12, y: y + ch / 2 + 4, "text-anchor": "end" }, svg); lab.textContent = row.d + " digits";
+    row.cells.forEach(([w, t], i) => {
+      if (!t) return;
+      const rate = w / t, x = lw + (cols - 1 - i) * cw, mix = Math.min(1, rate / vmax) * 100;
+      const r = el("rect", { x: x + 1, y: y + 1, width: cw - 2, height: ch - 2, rx: 3, fill: `color-mix(in oklab, var(--seq) ${mix.toFixed(0)}%, var(--rule-soft))` }, svg);
+      const tx = el("text", { x: x + cw / 2, y: y + ch / 2 + 4, "text-anchor": "middle", style: `fill:${mix > 52 ? "var(--on-seq)" : "var(--ink)"};font-size:11px` }, svg);
+      tx.textContent = Math.round(rate * 100) + "%";
+      bindHit(r, tip, host, `<b>${row.d} digits · ${names[i]}${i === row.d ? " (carry digit)" : ""}</b><br>${w} of ${t} wrong · ${pct(rate)}`);
+    });
+  });
+  const lg = top + D.heat.length * ch + 22;
+  const t0 = el("text", { x: lw, y: lg + 4, "text-anchor": "start", class: "axis-title" }, svg); t0.textContent = "error rate";
+  [0, 0.1, 0.2, 0.3, 0.4, 0.55].forEach((v, i) => {
+    el("rect", { x: lw + 80 + i * 56, y: lg - 8, width: 54, height: 14, rx: 2, fill: `color-mix(in oklab, var(--seq) ${Math.round(v / vmax * 100)}%, var(--rule-soft))` }, svg);
+    const tt = el("text", { x: lw + 80 + i * 56 + 27, y: lg + 20, "text-anchor": "middle", style: "font-size:11px" }, svg); tt.textContent = (i === 5 ? "≥" : "") + Math.round(v * 100) + "%";
+  });
+})();
+
+/* 4. carry table + ±1 table */
+(function () {
+  document.getElementById("carry").innerHTML = "<tr><th>Carries</th><th>Problems</th><th>Accuracy</th><th></th></tr>" +
+    D.carry.map(c => `<tr><td>${c.c === 5 ? "5+" : c.c}</td><td>${c.n}</td><td>${pct(c.k / c.n)}</td><td class="barcell"><div class="minibar"><span style="width:${(c.k / c.n * 100).toFixed(1)}%"></span></div></td></tr>`).join("");
+  const p = D.pm, tot = p.phantom + p.dropped + p.other;
+  document.getElementById("pm").innerHTML = "<tr><th>Pattern</th><th>Answers</th><th>Share</th></tr>" +
+    [["Phantom carry (+1, no carry in)", p.phantom], ["Dropped carry (−1, carry was due)", p.dropped], ["±1 not explained by a carry", p.other]]
+      .map(([n, v]) => `<tr><td style="white-space:normal">${n}</td><td>${v}</td><td>${Math.round(v / tot * 100)}%</td></tr>`).join("");
+})();
+
+/* 5. examples */
+(function () {
+  const host = document.getElementById("examples");
+  host.innerHTML = D.examples.map(e => {
+    const ans = String(e.answer), got = String(e.completion).trim().replace(/,/g, "");
+    const L = Math.max(ans.length, got.length, String(e.a).length + 2);
+    const pad = s => s.padStart(L, " ");
+    const g = pad(got), a = pad(ans);
+    const marked = [...g].map((ch, i) => ch !== " " && ch !== a[i] ? `<span class="w">${ch}</span>` : ch).join("");
+    return `<div class="ex">
+      <div class="tag"><span>${e.label}</span><span>${e.digits} digits</span></div>
+      <div class="sum" aria-label="${e.a} plus ${e.b} is ${ans}; model answered ${got}">
+        <span class="lbl"></span><span class="row">${pad(String(e.a))}</span>
+        <span class="lbl">+</span><span class="row">${pad(String(e.b))}</span>
+        <span class="lbl"></span><span class="line"></span>
+        <span class="lbl">true</span><span class="row">${a}</span>
+        <span class="lbl">model</span><span class="row model">${marked}</span>
+      </div>
+      <p>${e.note}</p>
+    </div>`;
+  }).join("");
+})();
+</script>

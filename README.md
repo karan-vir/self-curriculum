@@ -58,7 +58,7 @@ Untrained `Qwen2.5-0.5B-Instruct`, greedy decoding, 200 held-out problems per di
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Accuracy | 91.5% | 87.5% | 74.0% | **58.5%** | **39.5%** | 23.5% | 8.5% | 10.0% | 3.0% |
 
-Overall 44.0%. The starting edge (30–70%) is **5–6 digits**. Every wrong completion parsed as a number; the errors are arithmetic, mostly dropped or extra carries (e.g. 759 → 1759). Full completions are in `results/baseline.json`.
+Overall 44.0%. The starting edge (30–70%) is **5–6 digits**. Every wrong completion parsed as a number, so the errors are arithmetic. Accuracy does not depend on how many carries a problem needs, only on its length. Short sums mostly fail with one column off by 1 (phantom carries outnumber dropped ones 107 to 68); long sums fail across every column, including the units. Full completions are in `results/baseline.json`; the full analysis is in `reports/baseline.html`.
 
 ## Repository layout
 
