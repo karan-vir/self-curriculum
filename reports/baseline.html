@@ -76,8 +76,8 @@ header { display: grid; gap: 20px; border-bottom: 1px solid var(--rule); padding
 }
 
 section { display: grid; gap: 20px; }
-section > h2 { display: flex; gap: 12px; align-items: baseline; }
-section > h2 .sec { font: 500 14px var(--mono); color: var(--ink-3); }
+h2:has(.sec) { display: flex; gap: 12px; align-items: baseline; }
+h2 .sec { font: 500 14px var(--mono); color: var(--ink-3); flex: none; min-width: 1.4em; }
 
 ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
 ol.steps { margin: 0; padding-left: 1.4em; display: grid; gap: 10px; }
@@ -163,6 +163,17 @@ table.samples th:last-child { text-align: left; }
 table.samples tbody tr:hover { background: var(--rule-soft); }
 .empty { text-align: center !important; color: var(--ink-3); padding: 28px !important; font-family: var(--display) !important; }
 
+.diagram svg { min-width: 680px; }
+.diagram svg text { font-family: var(--display); fill: var(--ink); font-size: 13px; }
+.diagram svg text.sm { font-family: var(--mono); font-size: 11px; fill: var(--ink-2); }
+.diagram svg text.lane { font-family: var(--display); font-weight: 600; font-size: 12px; letter-spacing: 0.06em; fill: var(--ink-3); }
+.diagram svg text.loop { font-family: var(--mono); font-size: 11px; fill: var(--ink-3); }
+table.design-tbl td { white-space: normal; vertical-align: top; text-align: left; font-family: var(--body); font-size: 14px; }
+table.design-tbl th { text-align: left; }
+table.design-tbl td:first-child { font-family: var(--display); font-weight: 600; font-size: 13px; color: var(--ink-2); min-width: 130px; }
+table.design-tbl tr.hl td { background: var(--band); }
+h3 + ol.steps, h3 + p, h3 + ul.plain { margin-top: -6px; }
+
 .callout { border-left: 3px solid var(--s1); padding: 4px 0 4px 16px; }
 footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 @media (prefers-reduced-motion: no-preference) { .hit { transition: opacity .12s; } }
@@ -190,15 +201,117 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
   <div id="view-report" class="view" role="tabpanel" aria-labelledby="tab-report">
 
   <section class="prose">
-    <h2><span class="sec">1</span>Why this baseline matters</h2>
+    <h2><span class="sec">1</span>Objective</h2>
     <div class="stack">
-      <p>The experiment asks whether a small model learns faster when it picks its own training problems at the edge of its ability than when it trains on a fixed mix, given the same training budget. Before either arm runs, we need to know where the edge is, how sharp it is, and what kind of mistakes the model makes, because Arm A trains only on the model's own correct answers at that edge.</p>
+      <p class="lede" style="font-size:19px">Find out whether a small language model learns faster when it <b>chooses its own training problems</b> than when it follows a fixed curriculum, for the same training budget.</p>
+      <p>Self-improving models increasingly train on data they generate themselves, keeping only what a checker accepts. Which problems they practise on then decides how much each training example is worth. If a model can steer itself toward problems it can just barely solve, it should waste less compute on problems it already knows or can't yet attempt.</p>
+    </div>
+    <dl class="defs" style="margin-top:20px">
+      <dt>Question</dt><dd>Given 512 training examples per round, does training at the model's own edge (Arm A) reach higher held-out accuracy than a uniform mix of difficulties (Arm B)?</dd>
+      <dt>Testbed</dt><dd>Adding two N-digit integers, N from 2 to 10, on Qwen2.5-0.5B-Instruct with LoRA. Difficulty can be set exactly and every answer checked exactly, so no labels or judge model are needed.</dd>
+      <dt>Measured</dt><dd>Learning efficiency: held-out accuracy per round, overall and per length, and the longest length the model solves at least half the time.</dd>
+      <dt>Not measured</dt><dd>General reasoning or transfer to other tasks. In this first version the model chooses the difficulty, not the problems themselves.</dd>
+      <dt>Success</dt><dd>Arm A sits above Arm B at matched rounds across all 3 seeds, or reaches longer sums.</dd>
+      <dt>This report</dt><dd>Stage 1 of 4: the untrained baseline. It fixes the starting point that both arms are compared against. Next come the Arm A loop, the Arm B control, and the full runs.</dd>
+    </dl>
+  </section>
+
+  <section class="prose">
+    <h2><span class="sec">2</span>Why this baseline matters</h2>
+    <div class="stack">
+      <p>The experiment asks whether a small model learns faster when it picks its own training problems at the edge of its ability than when it trains on a fixed mix, given the same training budget. Before either arm runs, we need to know where the edge is, how sharp it is, and what kind of mistakes the model makes, because Arm A trains only on the model's own correct answers at that edge. Section 3 sets out the design and section 4 explains the edge.</p>
       <p>This report covers the untrained model only. No fine-tuning has happened yet.</p>
     </div>
   </section>
 
+
+  <section>
+    <div class="prose stack">
+      <h2><span class="sec">3</span>Experiment design</h2>
+      <p><b>Hypothesis:</b> for the same number of training examples, a model that trains at its own edge reaches higher held-out accuracy, or solves longer sums, than one trained on a fixed mix of difficulties.</p>
+      <p>Both arms start from the same untrained model and run the same loop for 10 rounds. They differ only in <b>who picks the difficulty</b>. Arm A measures itself each round and trains where it's partly right. Arm B trains on a uniform mix of 2–10 digits every round, whatever the model can already do.</p>
+    </div>
+
+    <figure>
+      <div class="ftitle">One round of each arm</div>
+      <div class="fsub">Shaded steps are the only part that differs. Everything from sampling onward is shared code with the same settings.</div>
+      <div class="chart diagram" id="design"></div>
+    </figure>
+
+    <div class="prose stack">
+      <h3>Arm A: self-curriculum</h3>
+      <ol class="steps">
+        <li><b>Probe.</b> Ask the current model 32 fresh problems at each length from 2 to 10 digits and measure greedy accuracy.</li>
+        <li><b>Pick the edge.</b> Keep the lengths with accuracy from 30% to 70%. If none qualify, take the one closest to 50%.</li>
+        <li><b>Sample.</b> Draw new problems at the edge lengths and let the model try each one 4 times at temperature 0.8.</li>
+        <li><b>Keep only correct answers.</b> The checker verifies each try exactly. Problems are drawn until 512 correct examples are collected.</li>
+        <li><b>Train.</b> One LoRA epoch on those 512 examples.</li>
+        <li><b>Evaluate</b> on the frozen 1,800-problem held-out set, then start the next round from the updated model.</li>
+      </ol>
+      <h3>Arm B: fixed curriculum (control)</h3>
+      <p>Each round draws problems evenly across all nine lengths, with no probe and no edge. The model then tries each problem the same way as in Arm A, and the same 512-example budget, checker and LoRA settings apply. Arm B also trains on the model's own correct answers. Where the model gets none right (common at 9–10 digits), it falls back to the true answer, and this fallback rate is logged.</p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table class="design-tbl">
+        <tr><th></th><th>Arm A · self-curriculum</th><th>Arm B · fixed curriculum</th></tr>
+        <tr><td>Who picks the difficulty</td><td>The model, from its own probe accuracy</td><td>Nobody: uniform over 2–10 digits</td></tr>
+        <tr><td>Training answers</td><td>Model's own, checker-verified</td><td>Model's own, checker-verified; true answer if none correct</td></tr>
+        <tr><td>Examples per round</td><td>512</td><td>512</td></tr>
+        <tr><td>Rounds × seeds</td><td>10 × 3</td><td>10 × 3</td></tr>
+        <tr><td>Extra inference cost</td><td>Probe (288 problems) + rejected tries</td><td>Rejected tries only</td></tr>
+        <tr><td>Evaluation</td><td>1,800 held-out, greedy, every round</td><td>Same</td></tr>
+      </table>
+    </div>
+
+    <div class="prose stack">
+      <h3>Shared settings</h3>
+      <p class="num" style="font-size:14px;color:var(--ink-2)">Qwen2.5-0.5B-Instruct · LoRA rank 16, alpha 32, dropout 0.05 · learning rate 2e-4 · batch 16 · 1 epoch per round · sampling temperature 0.8, 4 tries per problem · seeds 0, 1, 2</p>
+      <h3>Keeping the comparison fair</h3>
+      <ul class="plain">
+        <li><b>Same training budget.</b> Both arms train on exactly 512 examples per round with identical settings.</li>
+        <li><b>Inference is reported, not matched.</b> Arm A spends extra generation on probing. Both arms log generated tokens so that cost is visible next to the result.</li>
+        <li><b>No test leakage.</b> Any training problem that appears in the held-out set is rejected.</li>
+        <li><b>Three seeds per arm.</b> Small LoRA runs vary between seeds, so curves show the mean and range.</li>
+      </ul>
+      <h3>How the result is read</h3>
+      <ul class="plain">
+        <li><b>Main plot:</b> held-out accuracy against round for both arms, overall and per length.</li>
+        <li><b>Secondary:</b> the longest length with at least 50% accuracy, per round.</li>
+        <li><b>Support for the hypothesis:</b> Arm A's curve sits above Arm B's at matched rounds across seeds, or reaches longer sums.</li>
+      </ul>
+    </div>
+  </section>
+
   <section class="prose">
-    <h2><span class="sec">2</span>Assumptions</h2>
+    <h2><span class="sec">4</span>What is the edge?</h2>
+    <div class="stack">
+      <p>The <b>edge</b> is the range of lengths where the model is right some of the time: not most of the time, and not almost never. Here it means accuracy from 30% to 70%. For the untrained model that's <b>5 digits (58.5%) and 6 digits (39.5%)</b>.</p>
+      <p>Arm A learns only from its own answers that the checker confirms. That makes the useful zone narrow:</p>
+    </div>
+    <div class="tbl-wrap">
+      <table class="design-tbl">
+        <tr><th>Zone</th><th>Example</th><th>What training there gives</th></tr>
+        <tr><td>Too easy</td><td class="num">2 digits · 91.5%</td><td>Plenty of correct answers, but the model already knows these. Little to learn.</td></tr>
+        <tr class="hl"><td><b>Edge</b></td><td class="num"><b>5–6 digits · 40–60%</b></td><td><b>Enough correct answers to train on, on problems the model doesn't yet solve reliably.</b></td></tr>
+        <tr><td>Too hard</td><td class="num">10 digits · 3.0%</td><td>Almost no correct answers to keep. Most problems give nothing usable, even with 4 tries.</td></tr>
+      </table>
+    </div>
+    <div class="stack">
+      <p>The edge is where a correct answer is both <b>available</b> and <b>informative</b>, much as a student learns most from problems they get right about half the time.</p>
+      <p><b>The edge moves.</b> Arm A re-measures it every round. If training works, 5–6 digits become easy and the band shifts to 6–7, then 7–8. That moving target is the self-curriculum. Arm B ignores it.</p>
+      <p><b>Why the baseline looks at three things:</b></p>
+      <ul class="plain">
+        <li><b>Where the edge is</b> sets what Arm A trains on in round 1. With no length in the band, the loop would have nothing to start from.</li>
+        <li><b>How sharp it is</b> means how fast accuracy falls with length. A sharp drop (95% at 4 digits, then 5% at 5) leaves the band empty and Arm A on its fallback, possibly swinging between rounds. Ours falls 13–19 points per digit, so two lengths sit cleanly inside.</li>
+        <li><b>What kind of mistakes</b> it makes gives a before picture. Training on correct answers never shows the model its errors, so the error profile is how we tell <i>what</i> improved: whether phantom and dropped carries vanish at 5–6 digits, and whether units-column failures move to longer sums.</li>
+      </ul>
+      <p class="callout"><b>Greedy vs sampled.</b> The baseline measures the edge with greedy decoding (one most-likely answer). Arm A collects training answers by sampling 4 tries at temperature 0.8. Each sampled try is usually a little less accurate, but the chance that at least one of 4 is right is higher, so the useful band in practice may sit slightly toward longer sums. That's one reason Arm A re-probes every round.</p>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2><span class="sec">5</span>Assumptions</h2>
     <ul class="plain">
       <li><b>Difficulty means operand length.</b> Both operands have exactly N digits (no leading zeros), N from 2 to 10. Carries are not controlled; they occur as often as random digits produce them.</li>
       <li><b>The prompt is fixed.</b> “Compute the sum. Reply with the number only.” followed by <code>a + b =</code>, wrapped in Qwen's chat template, which also adds Qwen's default system message.</li>
@@ -210,7 +323,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
   </section>
 
   <section class="prose">
-    <h2><span class="sec">3</span>Methodology</h2>
+    <h2><span class="sec">6</span>Methodology</h2>
     <ol class="steps">
       <li><b>Freeze a held-out set.</b> <code>scripts/make_test_set.py</code> draws 200 distinct problems per difficulty with seed 1234 (1,800 total) and writes them to <code>data/test_set.jsonl</code>. Problems are deduplicated regardless of operand order, and training later rejects any problem in this set.</li>
       <li><b>Generate.</b> <code>scripts/baseline.py</code> runs the model on all 1,800 prompts in batches of 64 with left padding.</li>
@@ -229,7 +342,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
   <section>
     <div class="prose stack">
-      <h2><span class="sec">4</span>Results</h2>
+      <h2><span class="sec">7</span>Results</h2>
       <p>Accuracy drops 13 to 19 points per extra digit from 3 to 7 digits, then flattens near zero from 8 digits up. Two difficulties fall inside the edge band.</p>
     </div>
 
@@ -275,7 +388,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
   </section>
 
   <section class="prose">
-    <h2><span class="sec">5</span>Insights</h2>
+    <h2><span class="sec">8</span>Insights</h2>
     <ol class="insights">
       <li><h3>The edge is wide and well placed.</h3><p>Accuracy declines gradually instead of dropping off a cliff, so the 30–70% band picks out real difficulties (5 and 6 digits) and the empty-edge fallback is unlikely to trigger in round 1. Arm A has four harder levels above the edge to grow into.</p></li>
       <li><h3>Digit count is a sound difficulty knob.</h3><p>Accuracy doesn't change with the number of carries but falls steeply with length. Using operand length as the difficulty axis measures what actually makes the problem hard for this model.</p></li>
@@ -287,14 +400,14 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
   <section>
     <div class="prose stack">
-      <h2><span class="sec">6</span>Error examples</h2>
+      <h2><span class="sec">9</span>Error examples</h2>
       <p>Real cases from the run, set out as column addition. Highlighted digits are where the model's answer differs from the true sum.</p>
     </div>
     <div class="examples" id="examples"></div>
   </section>
 
   <section class="prose">
-    <h2><span class="sec">7</span>What this changes for the next step</h2>
+    <h2><span class="sec">10</span>What this changes for the next step</h2>
     <ul class="plain">
       <li><b>Increase the probe size for edge selection.</b> The plan probes 32 problems per difficulty each round, which gives a ±17-point interval at 50%. That's wide enough to flip 4 or 7 digits in or out of the band at random. 64 per difficulty would cut it to about ±12.</li>
       <li><b>Track the column heatmap every round.</b> If self-curriculum helps, it should first close the single-column ±1 errors at the edge, then push the units-column failures back to longer lengths.</li>
@@ -566,5 +679,41 @@ function bindHit(node, tip, host, html, anchor) {
   prev.addEventListener("click", () => { page--; render(); });
   next.addEventListener("click", () => { page++; render(); });
   apply();
+})();
+
+/* 7. design diagram */
+(function () {
+  const host = document.getElementById("design");
+  const W = 880, H = 330, x0 = 20, bw = 124, gap = 22, bh = 64;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Arm A: probe, pick edge, sample, keep correct, train, evaluate. Arm B: draw uniform, sample, keep correct, train, evaluate." }, host);
+  const defs = el("defs", {}, svg);
+  const mk = el("marker", { id: "ah", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+  el("path", { d: "M0 0L10 5L0 10z", fill: "var(--ink-3)" }, mk);
+  const cx = i => x0 + i * (bw + gap);
+  function box(x, y, w, title, sub, accent) {
+    el("rect", { x, y, width: w, height: bh, rx: 6, fill: accent ? "var(--band)" : "var(--surface)", stroke: accent ? "var(--s1)" : "var(--rule)", "stroke-width": accent ? 1.5 : 1 }, svg);
+    const t = el("text", { x: x + w / 2, y: y + 26, "text-anchor": "middle", style: "font-weight:600" }, svg); t.textContent = title;
+    const s = el("text", { x: x + w / 2, y: y + 46, "text-anchor": "middle", class: "sm" }, svg); s.textContent = sub;
+  }
+  function arrow(x1, y, x2) { el("line", { x1, y1: y, x2: x2 - 2, y2: y, stroke: "var(--ink-3)", "stroke-width": 1.5, "marker-end": "url(#ah)" }, svg); }
+  function lane(y, label, steps) {
+    const l = el("text", { x: x0, y: y - 12, class: "lane" }, svg); l.textContent = label;
+    let col = 0; const xs = [];
+    steps.forEach((st, k) => {
+      const span = st[3] || 1, x = cx(col), w = bw * span + gap * (span - 1);
+      box(x, y, w, st[0], st[1], st[2]); xs.push([x, w]);
+      if (k) arrow(xs[k - 1][0] + xs[k - 1][1], y + bh / 2, x);
+      col += span;
+    });
+    const first = xs[0], last = xs[xs.length - 1], ly = y + bh + 26;
+    el("path", { d: `M${last[0] + last[1] / 2} ${y + bh} V${ly} H${first[0] + first[1] / 2} V${y + bh + 2}`, fill: "none", stroke: "var(--ink-3)", "stroke-width": 1.5, "stroke-dasharray": "4 4", "marker-end": "url(#ah)" }, svg);
+    const t = el("text", { x: (first[0] + last[0] + last[1]) / 2, y: ly - 6, "text-anchor": "middle", class: "loop" }, svg); t.textContent = "next round · 10 rounds × 3 seeds";
+  }
+  lane(36, "ARM A · SELF-CURRICULUM", [
+    ["Probe", "32 × 9 lengths", true], ["Pick edge", "30–70% correct", true],
+    ["Sample", "4 tries, temp 0.8"], ["Keep correct", "checker, 512 kept"], ["LoRA train", "1 epoch"], ["Evaluate", "1,800 held-out"]]);
+  lane(196, "ARM B · FIXED CURRICULUM", [
+    ["Draw problems", "uniform over 2–10 digits", true, 2],
+    ["Sample", "4 tries, temp 0.8"], ["Keep correct", "else true answer"], ["LoRA train", "1 epoch"], ["Evaluate", "1,800 held-out"]]);
 })();
 </script>
