@@ -174,6 +174,8 @@ table.design-tbl td:first-child { font-family: var(--display); font-weight: 600;
 table.design-tbl tr.hl td { background: var(--band); }
 h3 + ol.steps, h3 + p, h3 + ul.plain { margin-top: -6px; }
 
+.snippet { font: 14px/1.5 var(--mono); background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; margin: 0; white-space: pre-wrap; word-break: break-word; }
+
 .callout { border-left: 3px solid var(--s1); padding: 4px 0 4px 16px; }
 footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 @media (prefers-reduced-motion: no-preference) { .hit { transition: opacity .12s; } }
@@ -219,7 +221,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
   <section class="prose">
     <h2><span class="sec">2</span>Why this baseline matters</h2>
     <div class="stack">
-      <p>The experiment asks whether a small model learns faster when it picks its own training problems at the edge of its ability than when it trains on a fixed mix, given the same training budget. Before either arm runs, we need to know where the edge is, how sharp it is, and what kind of mistakes the model makes, because Arm A trains only on the model's own correct answers at that edge. Section 3 sets out the design and section 4 explains the edge.</p>
+      <p>The experiment asks whether a small model learns faster when it picks its own training problems at the edge of its ability than when it trains on a fixed mix, given the same training budget. Before either arm runs, we need to know where the edge is, how sharp it is, and what kind of mistakes the model makes, because Arm A trains only on the model's own correct answers at that edge. Section 3 sets out the design, section 4 the data and section 5 explains the edge.</p>
       <p>This report covers the untrained model only. No fine-tuning has happened yet.</p>
     </div>
   </section>
@@ -241,7 +243,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <div class="prose stack">
       <h3>Arm A: self-curriculum</h3>
       <ol class="steps">
-        <li><b>Probe.</b> Ask the current model 32 fresh problems at each length from 2 to 10 digits and measure greedy accuracy.</li>
+        <li><b>Probe.</b> Ask the current model 64 fresh problems at each length from 2 to 10 digits and measure greedy accuracy.</li>
         <li><b>Pick the edge.</b> Keep the lengths with accuracy from 30% to 70%. If none qualify, take the one closest to 50%.</li>
         <li><b>Sample.</b> Draw new problems at the edge lengths and let the model try each one 4 times at temperature 0.8.</li>
         <li><b>Keep only correct answers.</b> The checker verifies each try exactly. Problems are drawn until 512 correct examples are collected.</li>
@@ -259,7 +261,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
         <tr><td>Training answers</td><td>Model's own, checker-verified</td><td>Model's own, checker-verified; true answer if none correct</td></tr>
         <tr><td>Examples per round</td><td>512</td><td>512</td></tr>
         <tr><td>Rounds × seeds</td><td>10 × 3</td><td>10 × 3</td></tr>
-        <tr><td>Extra inference cost</td><td>Probe (288 problems) + rejected tries</td><td>Rejected tries only</td></tr>
+        <tr><td>Extra inference cost</td><td>Probe (576 problems) + rejected tries</td><td>Rejected tries only</td></tr>
         <tr><td>Evaluation</td><td>1,800 held-out, greedy, every round</td><td>Same</td></tr>
       </table>
     </div>
@@ -283,8 +285,41 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     </div>
   </section>
 
+  <section>
+    <div class="prose stack">
+      <h2><span class="sec">4</span>Dataset</h2>
+      <p>Every problem is generated in Python and checked by exact arithmetic, so nothing is downloaded or hand-labelled. The experiment draws three sets of problems and keeps them strictly apart: one to score the model, one to find its edge, and one to train it.</p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table class="design-tbl">
+        <tr><th>Set</th><th>Size</th><th>How it's drawn</th><th>Used for</th><th>Trained on?</th></tr>
+        <tr><td>Held-out test</td><td class="num">1,800<br>200 × 9 lengths</td><td>Once, with seed 1234, then frozen in <code>data/test_set.jsonl</code>. Identical for every round, arm and seed.</td><td>Scoring only: the baseline and every round's evaluation.</td><td>Never</td></tr>
+        <tr><td>Probe</td><td class="num">576 per round<br>64 × 9 lengths</td><td>Fresh each round from the run's seed. Arm A only.</td><td>Measuring the current model to pick the edge.</td><td>No, scored only</td></tr>
+        <tr><td>Training</td><td class="num">512 kept per round</td><td>Fresh each round. Arm A draws at its edge lengths; Arm B draws evenly over 2–10 digits. Problems are drawn until 512 have a verified answer.</td><td>The LoRA update.</td><td>Yes, once each</td></tr>
+      </table>
+    </div>
+    <p class="meta">Arm A, round 1, seed 0: 1,088 training problems drawn at 5–6 digits, 4,352 tries sampled, 512 kept (256 per length), no shortfall.</p>
+
+    <div class="prose stack">
+      <h3>What one problem looks like</h3>
+      <p>Two integers with exactly N digits each (no leading zero), drawn uniformly at random, so carries occur as often as random digits produce them. The model sees the same prompt in every set:</p>
+      <pre class="snippet">Compute the sum. Reply with the number only.
+23821 + 28970 =</pre>
+      <p>wrapped in Qwen's chat template. A training example pairs that prompt with the model's own verified reply plus Qwen's end-of-turn marker, <code>52791&lt;|im_end|&gt;</code>. The loss is computed on those answer tokens only, never on the prompt. Qwen reads numbers one digit per token, so each digit of the answer is its own prediction.</p>
+
+      <h3>Keeping the sets apart</h3>
+      <ul class="plain">
+        <li><b>No test leakage.</b> Probe and training problems that match a held-out problem are rejected and redrawn. Matching ignores operand order, so 12 + 34 and 34 + 12 count as the same problem.</li>
+        <li><b>One example per problem.</b> Within a round, each training problem contributes at most one example (its first correct try), so the 512 examples are 512 different problems.</li>
+        <li><b>Repeats across rounds are possible but rare.</b> Training rounds don't exclude each other. At 5 digits there are about 4 billion distinct problems, so a repeat is negligible. At 2 digits there are only 4,095, and the held-out set already uses 200 of them (4.9%), which matters for Arm B's uniform mix.</li>
+        <li><b>Training answers come from the model.</b> Labels are the model's own replies, accepted only when the checker confirms them. Arm B falls back to the true sum when the model gets no try right, and logs how often.</li>
+      </ul>
+    </div>
+  </section>
+
   <section class="prose">
-    <h2><span class="sec">4</span>What is the edge?</h2>
+    <h2><span class="sec">5</span>What is the edge?</h2>
     <div class="stack">
       <p>The <b>edge</b> is the range of lengths where the model is right some of the time: not most of the time, and not almost never. Here it means accuracy from 30% to 70%. For the untrained model that's <b>5 digits (58.5%) and 6 digits (39.5%)</b>.</p>
       <p>Arm A learns only from its own answers that the checker confirms. That makes the useful zone narrow:</p>
@@ -293,10 +328,11 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
       <table class="design-tbl">
         <tr><th>Zone</th><th>Example</th><th>What training there gives</th></tr>
         <tr><td>Too easy</td><td class="num">2 digits · 91.5%</td><td>Plenty of correct answers, but the model already knows these. Little to learn.</td></tr>
-        <tr class="hl"><td><b>Edge</b></td><td class="num"><b>5–6 digits · 40–60%</b></td><td><b>Enough correct answers to train on, on problems the model doesn't yet solve reliably.</b></td></tr>
+        <tr class="hl"><td><b>Edge</b></td><td class="num"><b>5–6 digits · 39.5–58.5%</b></td><td><b>Enough correct answers to train on, on problems the model doesn't yet solve reliably.</b></td></tr>
         <tr><td>Too hard</td><td class="num">10 digits · 3.0%</td><td>Almost no correct answers to keep. Most problems give nothing usable, even with 4 tries.</td></tr>
       </table>
     </div>
+    <p class="meta">Accuracy of the untrained model on the 1,800-problem held-out set (200 per length), as in the results chart. During training, Arm A never uses the held-out set to pick its edge: it probes 64 fresh problems per length each round.</p>
     <div class="stack">
       <p>The edge is where a correct answer is both <b>available</b> and <b>informative</b>, much as a student learns most from problems they get right about half the time.</p>
       <p><b>The edge moves.</b> Arm A re-measures it every round. If training works, 5–6 digits become easy and the band shifts to 6–7, then 7–8. That moving target is the self-curriculum. Arm B ignores it.</p>
@@ -311,7 +347,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
   </section>
 
   <section class="prose">
-    <h2><span class="sec">5</span>Assumptions</h2>
+    <h2><span class="sec">6</span>Assumptions</h2>
     <ul class="plain">
       <li><b>Difficulty means operand length.</b> Both operands have exactly N digits (no leading zeros), N from 2 to 10. Carries are not controlled; they occur as often as random digits produce them.</li>
       <li><b>The prompt is fixed.</b> “Compute the sum. Reply with the number only.” followed by <code>a + b =</code>, wrapped in Qwen's chat template, which also adds Qwen's default system message.</li>
@@ -323,7 +359,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
   </section>
 
   <section class="prose">
-    <h2><span class="sec">6</span>Methodology</h2>
+    <h2><span class="sec">7</span>Methodology</h2>
     <ol class="steps">
       <li><b>Freeze a held-out set.</b> <code>scripts/make_test_set.py</code> draws 200 distinct problems per difficulty with seed 1234 (1,800 total) and writes them to <code>data/test_set.jsonl</code>. Problems are deduplicated regardless of operand order, and training later rejects any problem in this set.</li>
       <li><b>Generate.</b> <code>scripts/baseline.py</code> runs the model on all 1,800 prompts in batches of 64 with left padding.</li>
@@ -342,7 +378,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
   <section>
     <div class="prose stack">
-      <h2><span class="sec">7</span>Results</h2>
+      <h2><span class="sec">8</span>Results</h2>
       <p>Accuracy drops 13 to 19 points per extra digit from 3 to 7 digits, then flattens near zero from 8 digits up. Two difficulties fall inside the edge band.</p>
     </div>
 
@@ -388,7 +424,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
   </section>
 
   <section class="prose">
-    <h2><span class="sec">8</span>Insights</h2>
+    <h2><span class="sec">9</span>Insights</h2>
     <ol class="insights">
       <li><h3>The edge is wide and well placed.</h3><p>Accuracy declines gradually instead of dropping off a cliff, so the 30–70% band picks out real difficulties (5 and 6 digits) and the empty-edge fallback is unlikely to trigger in round 1. Arm A has four harder levels above the edge to grow into.</p></li>
       <li><h3>Digit count is a sound difficulty knob.</h3><p>Accuracy doesn't change with the number of carries but falls steeply with length. Using operand length as the difficulty axis measures what actually makes the problem hard for this model.</p></li>
@@ -400,16 +436,16 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
   <section>
     <div class="prose stack">
-      <h2><span class="sec">9</span>Error examples</h2>
+      <h2><span class="sec">10</span>Error examples</h2>
       <p>Real cases from the run, set out as column addition. Highlighted digits are where the model's answer differs from the true sum.</p>
     </div>
     <div class="examples" id="examples"></div>
   </section>
 
   <section class="prose">
-    <h2><span class="sec">10</span>What this changes for the next step</h2>
+    <h2><span class="sec">11</span>What this changes for the next step</h2>
     <ul class="plain">
-      <li><b>Increase the probe size for edge selection.</b> The plan probes 32 problems per difficulty each round, which gives a ±17-point interval at 50%. That's wide enough to flip 4 or 7 digits in or out of the band at random. 64 per difficulty would cut it to about ±12.</li>
+      <li><b>Probe size raised to 64 (adopted).</b> The original plan probed 32 problems per difficulty each round, which gives a ±17-point interval at 50%. That's wide enough to flip 4 or 7 digits in or out of the band at random. 64 per difficulty cuts it to about ±12; <code>config.py</code> now uses 64.</li>
       <li><b>Track the column heatmap every round.</b> If self-curriculum helps, it should first close the single-column ±1 errors at the edge, then push the units-column failures back to longer lengths.</li>
       <li><b>Report results per difficulty, not only overall.</b> Overall accuracy will hide whether gains come from the edge or from the levels the model already handles.</li>
     </ul>
@@ -710,7 +746,7 @@ function bindHit(node, tip, host, html, anchor) {
     const t = el("text", { x: (first[0] + last[0] + last[1]) / 2, y: ly - 6, "text-anchor": "middle", class: "loop" }, svg); t.textContent = "next round · 10 rounds × 3 seeds";
   }
   lane(36, "ARM A · SELF-CURRICULUM", [
-    ["Probe", "32 × 9 lengths", true], ["Pick edge", "30–70% correct", true],
+    ["Probe", "64 × 9 lengths", true], ["Pick edge", "30–70% correct", true],
     ["Sample", "4 tries, temp 0.8"], ["Keep correct", "checker, 512 kept"], ["LoRA train", "1 epoch"], ["Evaluate", "1,800 held-out"]]);
   lane(196, "ARM B · FIXED CURRICULUM", [
     ["Draw problems", "uniform over 2–10 digits", true, 2],

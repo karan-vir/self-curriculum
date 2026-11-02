@@ -23,12 +23,14 @@ class Config:
     examples_per_round: int = 512
     seeds: list[int] = field(default_factory=lambda: [0, 1, 2])
 
-    # Arm A
-    probe_per_difficulty: int = 32
+    # Arm A (64 gives about ±12 points at 50%; see reports/baseline.html)
+    probe_per_difficulty: int = 64
     edge_low: float = 0.3
     edge_high: float = 0.7
     samples_per_problem: int = 4
     sample_temperature: float = 0.8
+    collect_batch: int = 64
+    collect_max_batches: int = 50
 
     # LoRA
     lora_r: int = 16

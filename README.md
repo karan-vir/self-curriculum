@@ -28,7 +28,7 @@ A **self-curriculum** closes the loop. Each round, the model is tested across di
 
 **Arm A: self-curriculum.** Each round:
 
-1. Evaluate the model on a small probe batch at every difficulty.
+1. Evaluate the model on 64 fresh probe problems at every difficulty.
 2. Pick the edge: difficulties with accuracy in [0.3, 0.7]. If none qualify, take the one difficulty closest to 0.5.
 3. Sample problems at the edge and let the model attempt each one several times.
 4. Keep only answers the checker confirms are correct.
@@ -68,9 +68,12 @@ src/selfcurr/
   curriculum.py   edge selection (Arm A) and fixed mix (Arm B)
   config.py       experiment settings
   model.py        model loading, batched generation, evaluation
+  collect.py      draws problems per plan, keeps checker-verified answers
+  train.py        LoRA setup and one training round (loss on the answer only)
 scripts/
   make_test_set.py   writes the frozen held-out set to data/test_set.jsonl
   baseline.py        untrained-model accuracy per difficulty
+  run_arm_a.py       Arm A self-curriculum loop
 results/          committed experiment results
 tests/            unit tests for the generator, checker and curriculum
 ```
@@ -84,13 +87,26 @@ uv sync                          # core + dev tools
 uv sync --extra train            # adds torch, transformers, peft
 uv run pytest                    # tests
 uv run python scripts/make_test_set.py
+uv run python scripts/baseline.py
+uv run python scripts/run_arm_a.py --rounds 1 --seed 0   # one Arm A round
 ```
+
+`run_arm_a.py` writes `runs/arm_a/seed<N>/log.jsonl` (probe accuracy, edge, collection stats, generated tokens, losses and held-out accuracy per round) and a LoRA adapter per round. Training runs in float32 on MPS; round 0 re-evaluates the untrained model in the same precision.
+
+## Arm A, first round (seed 0)
+
+| | Overall | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Round 0 | 43.9% | 92% | 88% | 74% | 58% | 40% | 24% | 8% | 10% | 3% |
+| Round 1 | **58.9%** | 94% | 89% | 80% | 74% | 64% | 58% | 24% | 30% | 16% |
+
+The probe put the edge at 5–6 digits; 512 verified examples were collected with no shortfall (5 digits: 53% of tries correct, 6 digits: 34%), and one LoRA epoch took 21 s. The largest gains are at 7–10 digits, which were not trained on. That points to a general effect of training on its own verified answers, not only to the curriculum, which is exactly what Arm B has to separate out. One seed, one round: not yet a result.
 
 ## Roadmap
 
 - [x] Week 1, days 1–2: generator, checker, frozen test set
 - [x] Baseline accuracy per difficulty for the untrained model
-- [ ] Days 3–4: Arm A loop, one round end to end
+- [x] Days 3–4: Arm A loop, one round end to end
 - [ ] Days 5–6: Arm B with a matched budget
 - [ ] Day 7: several rounds of both arms, plots
 - [ ] v2: the model writes its own problems, not only picks the difficulty
