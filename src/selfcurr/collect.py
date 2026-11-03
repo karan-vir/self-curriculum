@@ -23,6 +23,7 @@ class LengthStats:
     tries: int = 0
     correct_tries: int = 0
     solved_problems: int = 0
+    fallback: int = 0
 
     @property
     def try_accuracy(self) -> float:
@@ -45,6 +46,10 @@ class Collection:
     def shortfall(self) -> int:
         return sum(s.needed - s.kept for s in self.stats.values())
 
+    @property
+    def fallback(self) -> int:
+        return sum(s.fallback for s in self.stats.values())
+
 
 def collect(
     sample_fn: SampleFn,
@@ -53,12 +58,16 @@ def collect(
     exclude: set[tuple[int, int]],
     batch_size: int = 64,
     max_batches: int = 50,
+    fallback: bool = False,
 ) -> Collection:
-    """Draw fresh problems per length until `plan[d]` verified examples are kept.
+    """Draw fresh problems per length until `plan[d]` examples are kept.
 
     One example per problem (its first correct try), so every kept example is
     a different problem. Problems in `exclude` (the held-out set) are never
     drawn. Stops a length after `max_batches` and records any shortfall.
+
+    With `fallback` (Arm B), a problem the model never solves contributes the
+    true answer instead, and `LengthStats.fallback` counts how often.
     """
     out = Collection()
     seen = set(exclude)
@@ -74,8 +83,14 @@ def collect(
                 st.tries += len(tries)
                 st.correct_tries += len(ok)
                 st.solved_problems += bool(ok)
-                if ok and st.kept < need:
+                if st.kept >= need:
+                    continue
+                if ok:
                     out.examples.append((p, ok[0]))
                     st.kept += 1
+                elif fallback:
+                    out.examples.append((p, str(p.answer)))
+                    st.kept += 1
+                    st.fallback += 1
             batches += 1
     return out

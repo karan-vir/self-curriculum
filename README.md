@@ -34,7 +34,9 @@ A **self-curriculum** closes the loop. Each round, the model is tested across di
 4. Keep only answers the checker confirms are correct.
 5. LoRA fine-tune on the kept examples (exactly `examples_per_round` of them).
 
-**Arm B: fixed curriculum (control).** Same model, same `examples_per_round`, same training settings. Difficulties are drawn uniformly from 2–10 every round, with no adaptation. To isolate *who picks the difficulty*, Arm B also trains on the model's own checker-verified solutions, not on generator-supplied answers. Where the model gets no correct solution at a difficulty, Arm B falls back to the true answer, and this rate is logged.
+**Arm B: fixed curriculum (control).** Same model, same `examples_per_round`, same training settings. Difficulties are drawn uniformly from 2–10 every round, with no adaptation. To isolate *who picks the difficulty*, Arm B also trains only on the model's own checker-verified solutions, drawing more problems at a length until enough are solved.
+
+**Arm B+key: reference, not a control.** As Arm B, but a problem the model never solves is trained on the true answer from the generator. It measures what the answer key adds on top of self-training, so it answers a different question from A vs B.
 
 ## Fairness rules
 
@@ -73,7 +75,7 @@ src/selfcurr/
 scripts/
   make_test_set.py   writes the frozen held-out set to data/test_set.jsonl
   baseline.py        untrained-model accuracy per difficulty
-  run_arm_a.py       Arm A self-curriculum loop
+  run_arm.py         round loop for any arm (--arm a|b|bkey)
 results/          committed experiment results
 tests/            unit tests for the generator, checker and curriculum
 ```
@@ -88,25 +90,48 @@ uv sync --extra train            # adds torch, transformers, peft
 uv run pytest                    # tests
 uv run python scripts/make_test_set.py
 uv run python scripts/baseline.py
-uv run python scripts/run_arm_a.py --rounds 1 --seed 0   # one Arm A round
+uv run python scripts/run_arm.py --arm a --rounds 1 --seed 0   # one Arm A round
+uv run python scripts/run_arm.py --arm b --rounds 1 --seed 0   # one Arm B round
+uv run python scripts/run_arm.py --arm bkey --rounds 1 --seed 0   # one Arm B+key round
 ```
 
-`run_arm_a.py` writes `runs/arm_a/seed<N>/log.jsonl` (probe accuracy, edge, collection stats, generated tokens, losses and held-out accuracy per round) and a LoRA adapter per round. Training runs in float32 on MPS; round 0 re-evaluates the untrained model in the same precision.
+`run_arm.py` writes `runs/arm_<a|b|bkey>/seed<N>/log.jsonl` (plan, probe accuracy and edge for Arm A, collection stats, fallback count, generated tokens, losses and held-out accuracy per round) and a LoRA adapter per round. Training runs in float32 on MPS; round 0 re-evaluates the untrained model in the same precision.
 
-## Arm A, first round (seed 0)
+## First round, all arms (seed 0)
 
 | | Overall | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Round 0 | 43.9% | 92% | 88% | 74% | 58% | 40% | 24% | 8% | 10% | 3% |
-| Round 1 | **58.9%** | 94% | 89% | 80% | 74% | 64% | 58% | 24% | 30% | 16% |
+| Round 0 (all arms) | 43.9% | 92% | 88% | 74% | 58% | 40% | 24% | 8% | 10% | 3% |
+| Arm A · self-curriculum | 58.9% | 94% | 89% | 80% | 74% | 64% | 58% | 24% | 30% | 16% |
+| Arm B · fixed curriculum | **67.6%** | 91% | 86% | 84% | 78% | 69% | 68% | 50% | 44% | 38% |
+| Arm B+key · reference | 70.3% | 93% | 86% | 82% | 70% | 72% | 66% | 61% | 60% | 43% |
 
-The probe put the edge at 5–6 digits; 512 verified examples were collected with no shortfall (5 digits: 53% of tries correct, 6 digits: 34%), and one LoRA epoch took 21 s. The largest gains are at 7–10 digits, which were not trained on. That points to a general effect of training on its own verified answers, not only to the curriculum, which is exactly what Arm B has to separate out. One seed, one round: not yet a result.
+| | Problems drawn | Answer-key examples | Generated tokens | Collect time |
+| --- | --- | --- | --- | --- |
+| Arm A | 1,088 | 0 | 35,897 | 77 s |
+| Arm B | 2,688 | 0 | 104,535 | 211 s |
+| Arm B+key | 576 | 258 | 17,739 | 42 s |
+
+After one round, the fixed curriculum beats the self-curriculum by 8.7 points at the same 512 training examples. Arm A trained only at 5–6 digits and gained most at 7; Arm B trained a little at every length and gained most at 8–10. The answer key adds only 2.7 points on top of Arm B, mostly at 8–10 digits. Arm B pays for its lead in generation: it sampled 2.9× Arm A's tokens to find rare correct answers at long lengths (7% solve rate at 10 digits). One seed and one round: Arm A's edge should move up in later rounds, so the 10-round curves decide the result.
+
+## Ten rounds, all arms (seed 0)
+
+| Round | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Arm A · self-curriculum | 43.9 | 58.9 | 68.9 | **80.9** | 80.7 | 75.1 | 77.3 | 80.2 | 80.9 | 82.8 | **84.2** |
+| Arm B · fixed curriculum | 43.9 | 67.6 | 74.1 | 73.1 | **80.8** | 78.9 | 71.2 | 77.8 | 81.7 | 84.9 | **83.8** |
+| Arm B+key · reference | 43.9 | 70.3 | 75.3 | 74.9 | 77.5 | **80.1** | 78.1 | 82.1 | 81.8 | 79.2 | **83.6** |
+
+Held-out accuracy (%); bold marks the first round at 80% or above and the final. Over 10 rounds Arm A generated 353k tokens, Arm B 371k and Arm B+key 175k (with 923 answer-key examples).
+
+The arms finish effectively tied: the finals are within 0.6 points, inside the ±1.7-point 95% interval of one score and smaller than the 2–8-point swings between rounds. Arm A reached 80% first (round 3, against 4 and 5), but its edge climbed from 5–6 to 8–10 digits by round 4 and stayed within 7–10 after that: the task stops at 10 digits, so the self-curriculum had nowhere further to go and the fixed mix caught up. Each arm ends slightly ahead where it practised (A at 8–10 digits, B at 4–5), within per-length noise. The answer key led early and gave no final benefit. Next: seeds 1 and 2, longer sums (e.g. 2–20 digits), and steadier training (keep optimizer state between rounds or lower the learning rate). Charts are in the Ten rounds tab of `reports/baseline.html`; `reports/status.html` shows runs live when the repo is served locally (`python3 -m http.server 8765`), and `scripts/watch.py` shows the same in a terminal.
 
 ## Roadmap
 
 - [x] Week 1, days 1–2: generator, checker, frozen test set
 - [x] Baseline accuracy per difficulty for the untrained model
 - [x] Days 3–4: Arm A loop, one round end to end
-- [ ] Days 5–6: Arm B with a matched budget
-- [ ] Day 7: several rounds of both arms, plots
+- [x] Days 5–6: Arm B with a matched budget (plus Arm B+key reference)
+- [x] Day 7: 10 rounds of all three arms, plots (seed 0)
+- [ ] Seeds 1 and 2; a longer difficulty range
 - [ ] v2: the model writes its own problems, not only picks the difficulty

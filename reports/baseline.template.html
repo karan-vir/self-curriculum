@@ -197,6 +197,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
   <nav class="tabs" role="tablist" aria-label="Report views">
     <button role="tab" id="tab-report" aria-controls="view-report" aria-selected="true" data-view="report">Report</button>
+    <button role="tab" id="tab-results" aria-controls="view-results" aria-selected="false" data-view="results">Ten rounds <span class="count">seed 0</span></button>
     <button role="tab" id="tab-samples" aria-controls="view-samples" aria-selected="false" data-view="samples">Samples <span class="count">1,800</span></button>
   </nav>
 
@@ -214,7 +215,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
       <dt>Measured</dt><dd>Learning efficiency: held-out accuracy per round, overall and per length, and the longest length the model solves at least half the time.</dd>
       <dt>Not measured</dt><dd>General reasoning or transfer to other tasks. In this first version the model chooses the difficulty, not the problems themselves.</dd>
       <dt>Success</dt><dd>Arm A sits above Arm B at matched rounds across all 3 seeds, or reaches longer sums.</dd>
-      <dt>This report</dt><dd>Stage 1 of 4: the untrained baseline. It fixes the starting point that both arms are compared against. Next come the Arm A loop, the Arm B control, and the full runs.</dd>
+      <dt>This report</dt><dd>The Report tab covers the untrained baseline, the starting point every arm is compared against. The <a href="#results" data-goto="results">Ten rounds</a> tab has the first full run of all three arms (seed 0). Seeds 1 and 2 are still to come.</dd>
     </dl>
   </section>
 
@@ -236,7 +237,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
     <figure>
       <div class="ftitle">One round of each arm</div>
-      <div class="fsub">Shaded steps are the only part that differs. Everything from sampling onward is shared code with the same settings.</div>
+      <div class="fsub">Shaded steps are the only parts that differ. Everything else is shared code with the same settings.</div>
       <div class="chart diagram" id="design"></div>
     </figure>
 
@@ -251,18 +252,20 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
         <li><b>Evaluate</b> on the frozen 1,800-problem held-out set, then start the next round from the updated model.</li>
       </ol>
       <h3>Arm B: fixed curriculum (control)</h3>
-      <p>Each round draws problems evenly across all nine lengths, with no probe and no edge. The model then tries each problem the same way as in Arm A, and the same 512-example budget, checker and LoRA settings apply. Arm B also trains on the model's own correct answers. Where the model gets none right (common at 9–10 digits), it falls back to the true answer, and this fallback rate is logged.</p>
+      <p>Each round draws problems evenly across all nine lengths, with no probe and no edge. The model then tries each problem the same way as in Arm A, and the same 512-example budget, checker and LoRA settings apply. Arm B also trains only on the model's own correct answers, drawing more problems at a length until enough are solved.</p>
+      <h3>Arm B+key: reference</h3>
+      <p>Identical to Arm B, except that a problem the model never solves is trained on the true answer. It isn't a control for Arm A, because it gets answers Arm A never sees. It shows how much the answer key adds on top of self-training.</p>
     </div>
 
     <div class="tbl-wrap">
       <table class="design-tbl">
-        <tr><th></th><th>Arm A · self-curriculum</th><th>Arm B · fixed curriculum</th></tr>
-        <tr><td>Who picks the difficulty</td><td>The model, from its own probe accuracy</td><td>Nobody: uniform over 2–10 digits</td></tr>
-        <tr><td>Training answers</td><td>Model's own, checker-verified</td><td>Model's own, checker-verified; true answer if none correct</td></tr>
-        <tr><td>Examples per round</td><td>512</td><td>512</td></tr>
-        <tr><td>Rounds × seeds</td><td>10 × 3</td><td>10 × 3</td></tr>
-        <tr><td>Extra inference cost</td><td>Probe (576 problems) + rejected tries</td><td>Rejected tries only</td></tr>
-        <tr><td>Evaluation</td><td>1,800 held-out, greedy, every round</td><td>Same</td></tr>
+        <tr><th></th><th>Arm A · self-curriculum</th><th>Arm B · fixed curriculum</th><th>Arm B+key · reference</th></tr>
+        <tr><td>Who picks the difficulty</td><td>The model, from its own probe accuracy</td><td>Nobody: uniform over 2–10 digits</td><td>Same as Arm B</td></tr>
+        <tr><td>Training answers</td><td>Model's own, checker-verified</td><td>Model's own, checker-verified</td><td>Model's own; true answer if none correct</td></tr>
+        <tr><td>Examples per round</td><td>512</td><td>512</td><td>512</td></tr>
+        <tr><td>Rounds × seeds</td><td>10 × 3</td><td>10 × 3</td><td>10 × 3</td></tr>
+        <tr><td>Extra inference cost</td><td>Probe (576 problems) + rejected tries</td><td>Rejected tries only, many at long lengths</td><td>Rejected tries only</td></tr>
+        <tr><td>Evaluation</td><td>1,800 held-out, greedy, every round</td><td>Same</td><td>Same</td></tr>
       </table>
     </div>
 
@@ -296,7 +299,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
         <tr><th>Set</th><th>Size</th><th>How it's drawn</th><th>Used for</th><th>Trained on?</th></tr>
         <tr><td>Held-out test</td><td class="num">1,800<br>200 × 9 lengths</td><td>Once, with seed 1234, then frozen in <code>data/test_set.jsonl</code>. Identical for every round, arm and seed.</td><td>Scoring only: the baseline and every round's evaluation.</td><td>Never</td></tr>
         <tr><td>Probe</td><td class="num">576 per round<br>64 × 9 lengths</td><td>Fresh each round from the run's seed. Arm A only.</td><td>Measuring the current model to pick the edge.</td><td>No, scored only</td></tr>
-        <tr><td>Training</td><td class="num">512 kept per round</td><td>Fresh each round. Arm A draws at its edge lengths; Arm B draws evenly over 2–10 digits. Problems are drawn until 512 have a verified answer.</td><td>The LoRA update.</td><td>Yes, once each</td></tr>
+        <tr><td>Training</td><td class="num">512 kept per round</td><td>Fresh each round. Arm A draws at its edge lengths; Arm B and B+key draw evenly over 2–10 digits. Problems are drawn until 512 have a verified answer.</td><td>The LoRA update.</td><td>Yes, once each</td></tr>
       </table>
     </div>
     <p class="meta">Arm A, round 1, seed 0: 1,088 training problems drawn at 5–6 digits, 4,352 tries sampled, 512 kept (256 per length), no shortfall.</p>
@@ -313,7 +316,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
         <li><b>No test leakage.</b> Probe and training problems that match a held-out problem are rejected and redrawn. Matching ignores operand order, so 12 + 34 and 34 + 12 count as the same problem.</li>
         <li><b>One example per problem.</b> Within a round, each training problem contributes at most one example (its first correct try), so the 512 examples are 512 different problems.</li>
         <li><b>Repeats across rounds are possible but rare.</b> Training rounds don't exclude each other. At 5 digits there are about 4 billion distinct problems, so a repeat is negligible. At 2 digits there are only 4,095, and the held-out set already uses 200 of them (4.9%), which matters for Arm B's uniform mix.</li>
-        <li><b>Training answers come from the model.</b> Labels are the model's own replies, accepted only when the checker confirms them. Arm B falls back to the true sum when the model gets no try right, and logs how often.</li>
+        <li><b>Training answers come from the model.</b> Labels are the model's own replies, accepted only when the checker confirms them. Only the Arm B+key reference uses the true sum, when the model gets no try right, and it logs how often.</li>
       </ul>
     </div>
   </section>
@@ -453,6 +456,95 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
   </div>
 
+  <div id="view-results" class="view" role="tabpanel" aria-labelledby="tab-results" hidden>
+    <section>
+      <div class="prose stack">
+        <h2>Ten rounds, three arms</h2>
+        <p class="lede" style="font-size:19px">After 10 rounds the three arms finish <b>effectively tied</b>. Arm A, which picks its own problems, reached 80% one round earlier than Arm B, but its edge hit the 10-digit ceiling by round 4, and the fixed mix caught up.</p>
+        <p class="meta">Seed 0 only · 512 training examples per round · held-out set of 1,800 problems, greedy · run 3 Nov 2026 on an M4 Pro</p>
+      </div>
+      <div class="facts">
+        <div class="fact"><b>84.2%</b><span>Arm A final, self-curriculum</span></div>
+        <div class="fact"><b>83.8%</b><span>Arm B final, fixed mix</span></div>
+        <div class="fact"><b>83.6%</b><span>Arm B+key final, with answer key</span></div>
+        <div class="fact"><b>±1.7</b><span>points, 95% interval on any one final score</span></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="prose stack">
+        <h2><span class="sec">R1</span>Accuracy by round</h2>
+        <p>All three arms start from the same 43.9% (round 0, evaluated in the training precision). They climb quickly for 3–4 rounds, then move up slowly with large swings from round to round.</p>
+      </div>
+      <figure>
+        <div class="ftitle">Held-out accuracy after each round</div>
+        <div class="fsub">All 1,800 held-out problems. The dashed line marks 80%. Hover a round for all three values.</div>
+        <div class="legend" id="r-acc-legend"></div>
+        <div class="chart" id="r-acc"></div>
+        <details><summary>Show as table</summary><div class="tbl-wrap"><table id="r-acc-table"></table></div></details>
+      </figure>
+      <div class="tbl-wrap">
+        <table id="r-sum"></table>
+      </div>
+    </section>
+
+    <section>
+      <div class="prose stack">
+        <h2><span class="sec">R2</span>Where Arm A chose to train</h2>
+        <p>Each round Arm A probes 64 fresh problems per length and trains on lengths it gets 30–70% right. The edge moved from 5–6 digits to 8–10 within four rounds. After that there was nothing harder to move to: the task stops at 10 digits, so from round 4 the self-curriculum stayed on 7–10 digits, mostly 8–10.</p>
+      </div>
+      <figure>
+        <div class="ftitle">Arm A's probe accuracy, round by round</div>
+        <div class="fsub">Each cell is the probe accuracy at the start of the round. Outlined cells are the edge the model chose to train on.</div>
+        <div class="chart" id="r-edge"></div>
+      </figure>
+    </section>
+
+    <section>
+      <div class="prose stack">
+        <h2><span class="sec">R3</span>Final accuracy by length</h2>
+        <p>Each arm ends slightly ahead where it practised most: Arm A at 8–10 digits, Arm B at 4–5. With 200 problems per length the 95% interval is about ±6 points, so none of these gaps is clear yet.</p>
+      </div>
+      <figure>
+        <div class="ftitle">Held-out accuracy by length after round 10</div>
+        <div class="fsub">The grey dashed line is round 0, before training.</div>
+        <div class="legend" id="r-len-legend"></div>
+        <div class="chart" id="r-len"></div>
+        <details><summary>Show as table</summary><div class="tbl-wrap"><table id="r-len-table"></table></div></details>
+      </figure>
+    </section>
+
+    <section>
+      <div class="prose stack">
+        <h2><span class="sec">R4</span>What each arm cost</h2>
+        <p>Training is matched at 512 examples per round. Inference isn't: Arm A pays for its probe, and the arms without an answer key pay for rejected tries on long sums.</p>
+      </div>
+      <div class="tbl-wrap"><table id="r-cost"></table></div>
+    </section>
+
+    <section class="prose">
+      <h2><span class="sec">R5</span>Insights</h2>
+      <ol class="insights">
+        <li><h3>No winner after 10 rounds.</h3><p>The three finals sit within 0.6 points of each other, well inside the ±1.7-point interval of a single score and far smaller than the 2–8-point swings each arm shows between rounds.</p></li>
+        <li><h3>Arm A got to 80% first.</h3><p>It crossed 80% at round 3, against round 4 for Arm B and round 5 for Arm B+key, even though Arm B led in rounds 1–2. That is the "learns faster" claim, but it is one seed and one crossing.</p></li>
+        <li><h3>The task ran out of difficulty.</h3><p>Arm A's edge reached 8–10 digits by round 4 and never left 7–10 after that. From then on it had no harder problems to move to, which is when Arm B caught up. A range of 2–10 digits is too short to test the hypothesis properly; extending to 15–20 digits would let the edge keep climbing.</p></li>
+        <li><h3>Each arm improved where it practised.</h3><p>Arm A ends ahead at 8–10 digits and Arm B at 4–5, consistent with where each spent its examples, though each gap is within the per-length noise.</p></li>
+        <li><h3>The answer key stopped helping.</h3><p>Arm B+key led after round 1, when 258 of its 512 examples came from the key. It then fell behind and finished last despite 923 key examples in total, at under half the generation cost.</p></li>
+        <li><h3>Training is jumpy.</h3><p>Every arm lost 2–8 points in at least one round. Arm B's round 6 fell at every length (6 digits went from 74% to 60%), which looks like an unstable update rather than sampling noise. A fresh optimizer each round at learning rate 2e-4 is the likely cause.</p></li>
+        <li><h3>Compute ended up close.</h3><p>Arm B's first round was expensive (105k tokens, mostly failed tries at 8–10 digits). Over 10 rounds Arm A generated 353k tokens and Arm B 371k.</p></li>
+      </ol>
+    </section>
+
+    <section class="prose">
+      <h2><span class="sec">R6</span>Before calling a result</h2>
+      <ul class="plain">
+        <li><b>Run seeds 1 and 2</b> for all three arms (about 2.5 hours) to see whether Arm A's earlier crossing holds.</li>
+        <li><b>Extend the task</b> to longer sums, for example 2–20 digits, so the edge has room to keep moving.</li>
+        <li><b>Steady the training,</b> for example by keeping the optimizer state between rounds or lowering the learning rate, to shrink the round-to-round swings before comparing arms.</li>
+      </ul>
+    </section>
+  </div>
+
   <div id="view-samples" class="view" role="tabpanel" aria-labelledby="tab-samples" hidden>
     <section>
       <div class="prose stack">
@@ -510,6 +602,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
 <script>
 const D = /*DATA*/null;
+const R = /*RES*/null;
 const NS = "http://www.w3.org/2000/svg";
 const pct = x => (x * 100).toFixed(1) + "%";
 function el(tag, attrs = {}, parent) {
@@ -661,7 +754,7 @@ function bindHit(node, tip, host, html, anchor) {
 
 /* 6. tabs + samples */
 (function () {
-  const views = { report: document.getElementById("view-report"), samples: document.getElementById("view-samples") };
+  const views = { report: document.getElementById("view-report"), results: document.getElementById("view-results"), samples: document.getElementById("view-samples") };
   const tabs = [...document.querySelectorAll(".tabs button")];
   function show(name, push) {
     if (!views[name]) name = "report";
@@ -670,6 +763,7 @@ function bindHit(node, tip, host, html, anchor) {
     if (push) { try { history.replaceState(null, "", "#" + name); } catch (e) {} }
   }
   tabs.forEach(t => t.addEventListener("click", () => { show(t.dataset.view, true); window.scrollTo({ top: document.querySelector(".tabs").offsetTop - 8 }); }));
+  document.querySelectorAll("[data-goto]").forEach(a => a.addEventListener("click", e => { e.preventDefault(); show(a.dataset.goto, true); window.scrollTo({ top: document.querySelector(".tabs").offsetTop - 8 }); }));
   show((location.hash || "").slice(1) || "report", false);
 
   document.getElementById("prompt-text").textContent = D.prompt;
@@ -720,8 +814,8 @@ function bindHit(node, tip, host, html, anchor) {
 /* 7. design diagram */
 (function () {
   const host = document.getElementById("design");
-  const W = 880, H = 330, x0 = 20, bw = 124, gap = 22, bh = 64;
-  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Arm A: probe, pick edge, sample, keep correct, train, evaluate. Arm B: draw uniform, sample, keep correct, train, evaluate." }, host);
+  const W = 880, H = 490, x0 = 20, bw = 124, gap = 22, bh = 64;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Arm A: probe, pick edge, sample, keep correct, train, evaluate. Arm B: draw uniform, sample, keep correct, train, evaluate. Arm B+key: as Arm B, but unsolved problems use the true answer." }, host);
   const defs = el("defs", {}, svg);
   const mk = el("marker", { id: "ah", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
   el("path", { d: "M0 0L10 5L0 10z", fill: "var(--ink-3)" }, mk);
@@ -750,6 +844,122 @@ function bindHit(node, tip, host, html, anchor) {
     ["Sample", "4 tries, temp 0.8"], ["Keep correct", "checker, 512 kept"], ["LoRA train", "1 epoch"], ["Evaluate", "1,800 held-out"]]);
   lane(196, "ARM B · FIXED CURRICULUM", [
     ["Draw problems", "uniform over 2–10 digits", true, 2],
-    ["Sample", "4 tries, temp 0.8"], ["Keep correct", "else true answer"], ["LoRA train", "1 epoch"], ["Evaluate", "1,800 held-out"]]);
+    ["Sample", "4 tries, temp 0.8"], ["Keep correct", "checker, 512 kept"], ["LoRA train", "1 epoch"], ["Evaluate", "1,800 held-out"]]);
+  lane(356, "ARM B+KEY · REFERENCE", [
+    ["Draw problems", "uniform over 2–10 digits", true, 2],
+    ["Sample", "4 tries, temp 0.8"], ["Keep or key", "else true answer", true], ["LoRA train", "1 epoch"], ["Evaluate", "1,800 held-out"]]);
+})();
+/* 8. ten-round results */
+(function () {
+  if (!R) return;
+  const ARMS = [["a", "Arm A · self-curriculum", "var(--s1)"], ["b", "Arm B · fixed mix", "var(--s2)"], ["bkey", "Arm B+key · reference", "var(--s3)"]];
+  const legend = ARMS.map(a => `<span><i style="background:${a[2]}"></i>${a[1]}</span>`).join("");
+  const fmt = n => n.toLocaleString("en-US");
+  const first80 = rs => (rs.find(x => x.r > 0 && x.o >= 0.8) || {}).r;
+  const mean = rs => rs.filter(x => x.r > 0).reduce((t, x) => t + x.o, 0) / (rs.length - 1);
+
+  /* R1 accuracy by round */
+  {
+    const host = document.getElementById("r-acc");
+    document.getElementById("r-acc-legend").innerHTML = legend;
+    const W = 860, H = 360, m = { l: 52, r: 76, t: 16, b: 46 }, lo = 0.4, hi = 0.9;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Held-out accuracy by round for three arms; all start at 43.9% and end between 83.6% and 84.2%" }, host);
+    const xs = r => m.l + 12 + r / 10 * (W - m.l - m.r - 24);
+    const ys = p => m.t + (hi - p) / (hi - lo) * (H - m.t - m.b);
+    for (let v = lo; v <= hi + 1e-9; v += 0.1) {
+      el("line", { x1: m.l, x2: W - m.r, y1: ys(v), y2: ys(v), stroke: "var(--rule-soft)" }, svg);
+      const t = el("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, svg); t.textContent = Math.round(v * 100) + "%";
+    }
+    el("line", { x1: m.l, x2: W - m.r, y1: ys(0.8), y2: ys(0.8), stroke: "var(--ink-3)", "stroke-dasharray": "4 4" }, svg);
+    for (let r = 0; r <= 10; r++) { const t = el("text", { x: xs(r), y: H - m.b + 20, "text-anchor": "middle" }, svg); t.textContent = r; }
+    const at = el("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", class: "axis-title" }, svg); at.textContent = "round";
+    ARMS.forEach(([k, , c]) => {
+      el("path", { d: R[k].map((x, i) => (i ? "L" : "M") + xs(x.r) + " " + ys(x.o)).join(""), fill: "none", stroke: c, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+      R[k].forEach(x => el("circle", { cx: xs(x.r), cy: ys(x.o), r: 4, fill: c, stroke: "var(--surface)", "stroke-width": 2 }, svg));
+    });
+    // end labels, nudged apart so close finals don't overlap
+    const ends = ARMS.map(([k, , c]) => ({ v: R[k][10].o, c, y: ys(R[k][10].o) })).sort((a, b) => a.y - b.y);
+    for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 15);
+    ends.forEach(e => { const t = el("text", { x: xs(10) + 12, y: e.y + 4, style: "font-weight:600;fill:var(--ink)" }, svg); t.textContent = pct(e.v); el("rect", { x: xs(10) + 58, y: e.y - 4, width: 8, height: 8, rx: 2, fill: e.c }, svg); });
+    const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink-3)", "stroke-width": 1, opacity: 0 }, svg);
+    const tip = tipper(host);
+    for (let r = 0; r <= 10; r++) {
+      const hit = el("rect", { x: xs(r) - (xs(1) - xs(0)) / 2, y: m.t, width: xs(1) - xs(0), height: H - m.t - m.b, fill: "transparent" }, svg);
+      bindHit(hit, tip, host, `<b>Round ${r}</b><br>` + ARMS.map(([k, n]) => `${n.split(" · ")[0]} ${pct(R[k][r].o)}`).join("<br>"),
+        rr => [rr.left + rr.width / 2, svg.getBoundingClientRect().top + ys(Math.max(...ARMS.map(a => R[a[0]][r].o))) * svg.getBoundingClientRect().height / H - 8]);
+      hit.addEventListener("mouseenter", () => { cross.setAttribute("x1", xs(r)); cross.setAttribute("x2", xs(r)); cross.setAttribute("opacity", 0.6); });
+      hit.addEventListener("mouseleave", () => cross.setAttribute("opacity", 0));
+    }
+    document.getElementById("r-acc-table").innerHTML = "<tr><th>Round</th>" + ARMS.map(a => `<th>${a[1]}</th>`).join("") + "</tr>" +
+      R.a.map((_, r) => `<tr><td>${r}</td>${ARMS.map(([k]) => `<td>${pct(R[k][r].o)}</td>`).join("")}</tr>`).join("");
+    document.getElementById("r-sum").innerHTML = "<tr><th>Arm</th><th>Final</th><th>Mean, rounds 1–10</th><th>Best round</th><th>First round ≥ 80%</th><th>Largest drop</th></tr>" +
+      ARMS.map(([k, n]) => {
+        const rs = R[k], best = rs.reduce((b, x) => x.o > b.o ? x : b);
+        const drop = Math.min(...rs.slice(1).map((x, i) => x.o - rs[i].o));
+        return `<tr><td>${n}</td><td>${pct(rs[10].o)}</td><td>${pct(mean(rs))}</td><td>${pct(best.o)} (round ${best.r})</td><td>${first80(rs) ?? "–"}</td><td>${(drop * 100).toFixed(1)} pts</td></tr>`;
+      }).join("");
+  }
+
+  /* R2 Arm A edge path */
+  {
+    const host = document.getElementById("r-edge");
+    const rows = R.a.filter(x => x.probe), cw = 64, ch = 30, lw = 84, top = 26;
+    const W = lw + 9 * cw + 10, H = top + rows.length * ch + 44;
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Arm A probe accuracy per round and length; the chosen edge moves from 5–6 digits in round 1 to 8–10 digits by round 4" }, host);
+    for (let d = 2; d <= 10; d++) { const t = el("text", { x: lw + (d - 2) * cw + cw / 2, y: top - 10, "text-anchor": "middle" }, svg); t.textContent = d + "d"; }
+    const tip = tipper(host);
+    rows.forEach((x, ri) => {
+      const y = top + ri * ch;
+      const lab = el("text", { x: lw - 12, y: y + ch / 2 + 4, "text-anchor": "end" }, svg); lab.textContent = "round " + x.r;
+      for (let d = 2; d <= 10; d++) {
+        const p = x.probe[d], cx = lw + (d - 2) * cw, inEdge = x.edge.includes(d), mix = (1 - p) * 100;
+        const r = el("rect", { x: cx + 2, y: y + 2, width: cw - 4, height: ch - 4, rx: 3, fill: `color-mix(in oklab, var(--seq) ${mix.toFixed(0)}%, var(--rule-soft))`, stroke: inEdge ? "var(--ink)" : "none", "stroke-width": 2 }, svg);
+        const t = el("text", { x: cx + cw / 2, y: y + ch / 2 + 4, "text-anchor": "middle", style: `font-size:11px;fill:${mix > 52 ? "var(--on-seq)" : "var(--ink)"};${inEdge ? "font-weight:600" : ""}` }, svg);
+        t.textContent = Math.round(p * 100) + "%";
+        bindHit(r, tip, host, `<b>Round ${x.r} · ${d} digits</b><br>probe ${pct(p)} · ${inEdge ? "trained on (edge)" : "not chosen"}`);
+      }
+    });
+    const lg = top + rows.length * ch + 26;
+    el("rect", { x: lw + 2, y: lg - 10, width: 22, height: 14, rx: 3, fill: "none", stroke: "var(--ink)", "stroke-width": 2 }, svg);
+    const t1 = el("text", { x: lw + 32, y: lg + 1, class: "axis-title" }, svg); t1.textContent = "edge chosen for training";
+    const t2 = el("text", { x: W - 10, y: lg + 1, "text-anchor": "end", class: "axis-title" }, svg); t2.textContent = "darker = lower probe accuracy";
+  }
+
+  /* R3 final per length */
+  {
+    const host = document.getElementById("r-len");
+    document.getElementById("r-len-legend").innerHTML = legend + `<span><i style="background:var(--ink-3)"></i>Round 0, before training</span>`;
+    const W = 860, H = 320, m = { l: 52, r: 20, t: 14, b: 46 };
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Final accuracy by length for three arms, with round 0 for comparison" }, host);
+    const xs = d => m.l + 15 + (d - 2) / 8 * (W - m.l - m.r - 30);
+    const ys = p => m.t + (1 - p) * (H - m.t - m.b);
+    for (let v = 0; v <= 1.0001; v += 0.25) {
+      el("line", { x1: m.l, x2: W - m.r, y1: ys(v), y2: ys(v), stroke: "var(--rule-soft)" }, svg);
+      const t = el("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, svg); t.textContent = v * 100 + "%";
+    }
+    for (let d = 2; d <= 10; d++) { const t = el("text", { x: xs(d), y: H - m.b + 20, "text-anchor": "middle" }, svg); t.textContent = d; }
+    const at = el("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", class: "axis-title" }, svg); at.textContent = "digits per operand";
+    const D2 = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+    el("path", { d: D2.map((d, i) => (i ? "L" : "M") + xs(d) + " " + ys(R.a[0].e[d])).join(""), fill: "none", stroke: "var(--ink-3)", "stroke-width": 2, "stroke-dasharray": "5 4" }, svg);
+    ARMS.forEach(([k, , c]) => {
+      el("path", { d: D2.map((d, i) => (i ? "L" : "M") + xs(d) + " " + ys(R[k][10].e[d])).join(""), fill: "none", stroke: c, "stroke-width": 2 }, svg);
+      D2.forEach(d => el("circle", { cx: xs(d), cy: ys(R[k][10].e[d]), r: 4, fill: c, stroke: "var(--surface)", "stroke-width": 2 }, svg));
+    });
+    const tip = tipper(host);
+    D2.forEach(d => {
+      const hit = el("rect", { x: xs(d) - 40, y: m.t, width: 80, height: H - m.t - m.b, fill: "transparent" }, svg);
+      bindHit(hit, tip, host, `<b>${d} digits</b><br>` + ARMS.map(([k, n]) => `${n.split(" · ")[0]} ${pct(R[k][10].e[d])}`).join("<br>") + `<br>Round 0 ${pct(R.a[0].e[d])}`,
+        rr => [rr.left + rr.width / 2, svg.getBoundingClientRect().top + ys(Math.max(...ARMS.map(a => R[a[0]][10].e[d]))) * svg.getBoundingClientRect().height / H - 8]);
+    });
+    document.getElementById("r-len-table").innerHTML = "<tr><th>Digits</th><th>Round 0</th>" + ARMS.map(a => `<th>${a[1]}</th>`).join("") + "</tr>" +
+      D2.map(d => `<tr><td>${d}</td><td>${pct(R.a[0].e[d])}</td>${ARMS.map(([k]) => `<td>${pct(R[k][10].e[d])}</td>`).join("")}</tr>`).join("");
+  }
+
+  /* R4 cost */
+  {
+    const tot = (k, f) => R[k].reduce((t, x) => t + (x[f] || 0), 0);
+    document.getElementById("r-cost").innerHTML = "<tr><th>Arm</th><th>Examples trained</th><th>Tokens generated</th><th>Round 1 tokens</th><th>Answer-key examples</th><th>Wall time</th></tr>" +
+      ARMS.map(([k, n]) => `<tr><td>${n}</td><td>${fmt(512 * 10)}</td><td>${fmt(tot(k, "tok"))}</td><td>${fmt(R[k][1].tok)}</td><td>${fmt(tot(k, "fb"))}</td><td>${Math.round(tot(k, "sec") / 60)} min</td></tr>`).join("");
+  }
 })();
 </script>

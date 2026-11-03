@@ -40,6 +40,18 @@ def test_stats_count_tries():
     assert st.try_accuracy == 0.25 and st.solve_rate == 1.0
 
 
+def test_fallback_uses_true_answer_when_unsolved():
+    col = collect(oracle(0), {9: 5}, random.Random(0), exclude=set(), batch_size=8, fallback=True)
+    assert len(col.examples) == 5 and col.shortfall == 0
+    assert col.fallback == col.stats[9].fallback == 5
+    assert all(c == str(p.answer) for p, c in col.examples)
+
+
+def test_fallback_unused_when_model_solves():
+    col = collect(oracle(1), {4: 20}, random.Random(0), exclude=set(), fallback=True)
+    assert col.fallback == 0 and len(col.examples) == 20
+
+
 def test_shortfall_when_model_never_right():
     col = collect(oracle(0), {9: 5}, random.Random(0), exclude=set(), batch_size=8, max_batches=3)
     assert col.examples == []

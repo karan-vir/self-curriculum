@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run Status</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Live run monitor: reads each arm's log.jsonl from the local server every 15 s. */
+:root {
+  --bg: #f5f6f8; --surface: #fcfcfb; --ink: #15181d; --ink-2: #4f5561; --ink-3: #7b818c;
+  --rule: #dcdfe5; --rule-soft: #e9ebef; --band: #e6eef9;
+  --a: #2a78d6; --b: #eb6834; --k: #1baf7a; --good: #008300; --warn: #b26b00;
+  --display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #121418; --surface: #1a1a19; --ink: #eeeee9; --ink-2: #b9bcc2; --ink-3: #8a8f98;
+    --rule: #33363d; --rule-soft: #26282d; --band: #1d2a3b; --a: #3987e5; --b: #d95926; --k: #199e70;
+    --good: #4cb85c; --warn: #e0a030; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--display);
+  padding: 28px max(16px, env(safe-area-inset-left, 0px)) 56px; }
+.page { max-width: 980px; margin: 0 auto; display: grid; gap: 24px; }
+h1 { margin: 0; font-size: 26px; font-weight: 700; }
+h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+.meta { font: 12px/1.5 var(--mono); color: var(--ink-3); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .cards { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
+.card .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.card .name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.card .name i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.state { font: 600 11px var(--display); letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 10px; background: var(--rule-soft); color: var(--ink-3); }
+.state.running { color: var(--a); background: var(--band); }
+.state.done { color: var(--good); }
+.big { font: 600 30px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.big small { font-size: 13px; color: var(--ink-3); font-weight: 500; margin-left: 6px; }
+.bar { height: 6px; border-radius: 3px; background: var(--rule-soft); overflow: hidden; }
+.bar span { display: block; height: 100%; border-radius: 3px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; color: var(--ink-2); }
+.kv b { font: 500 13px var(--mono); color: var(--ink); text-align: right; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px; display: grid; gap: 12px; min-width: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: 4px; margin-right: 6px; }
+.chart { overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; min-width: 520px; }
+.chart svg text { font: 12px var(--mono); fill: var(--ink-2); }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font: 13px var(--mono); font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--rule-soft); white-space: nowrap; }
+th { font: 600 12px var(--display); color: var(--ink-3); border-bottom-color: var(--rule); }
+th:first-child, td:first-child { text-align: left; font-family: var(--display); }
+td.cell { position: relative; }
+.edges { display: flex; flex-wrap: wrap; gap: 8px; }
+.edge { border: 1px solid var(--rule); border-radius: 5px; padding: 6px 10px; display: grid; gap: 2px; min-width: 72px; }
+.edge span { font: 11px var(--display); color: var(--ink-3); }
+.edge b { font: 600 14px var(--mono); }
+.empty { color: var(--ink-3); font-size: 14px; }
+.err { color: var(--warn); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top">
+    <h1>Run Status · seed <span id="seed">0</span></h1>
+    <span class="meta" id="updated">loading…</span>
+  </div>
+  <div class="cards" id="cards"></div>
+
+  <div class="panel">
+    <h2>Held-out accuracy by round</h2>
+    <div class="legend" id="legend"></div>
+    <div class="chart" id="chart"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Arm A's edge, round by round</h2>
+    <div class="edges" id="edges"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Latest round, accuracy by length</h2>
+    <div class="tbl"><table id="lengths"></table></div>
+  </div>
+  <p class="meta">Reads <code>runs/arm_&lt;a|b|bkey&gt;/seed&lt;N&gt;/log.jsonl</code> every 15 s. Add <code>?seed=1</code> to the address to watch another seed.</p>
+</div>
+
+<script>
+const SEED = new URLSearchParams(location.search).get("seed") || "0";
+document.getElementById("seed").textContent = SEED;
+const ARMS = [
+  { id: "a", name: "Arm A · self-curriculum", color: "var(--a)" },
+  { id: "b", name: "Arm B · fixed curriculum", color: "var(--b)" },
+  { id: "bkey", name: "Arm B+key · reference", color: "var(--k)" },
+];
+const ROUNDS = 10;
+const NS = "http://www.w3.org/2000/svg";
+const pct = x => (x * 100).toFixed(1) + "%";
+const mins = s => s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round(s % 3600 / 60)} min` : `${Math.max(1, Math.round(s / 60))} min`;
+
+async function readLog(path) {
+  try {
+    const r = await fetch(path + "?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return null;
+    return (await r.text()).trim().split("\n").filter(Boolean).map(l => JSON.parse(l));
+  } catch (e) { return null; }
+}
+const roundSecs = row => typeof row.seconds === "number" ? row.seconds : Object.values(row.seconds || {}).reduce((a, b) => a + b, 0);
+
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  parent && parent.appendChild(e);
+  return e;
+}
+
+function chart(data) {
+  const host = document.getElementById("chart"); host.innerHTML = "";
+  const W = 900, H = 320, m = { l: 48, r: 110, t: 14, b: 36 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, host);
+  const xs = r => m.l + r / ROUNDS * (W - m.l - m.r), ys = p => m.t + (1 - p) * (H - m.t - m.b);
+  for (let v = 0; v <= 1.0001; v += 0.25) {
+    el("line", { x1: m.l, x2: W - m.r, y1: ys(v), y2: ys(v), stroke: "var(--rule-soft)" }, svg);
+    el("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, svg).textContent = Math.round(v * 100) + "%";
+  }
+  for (let r = 0; r <= ROUNDS; r++) el("text", { x: xs(r), y: H - m.b + 20, "text-anchor": "middle" }, svg).textContent = r;
+  const labels = [];
+  ARMS.forEach(a => {
+    const rows = data[a.id]; if (!rows || !rows.length) return;
+    el("path", { d: rows.map((r, i) => (i ? "L" : "M") + xs(r.round) + " " + ys(r.eval_overall)).join(""), fill: "none", stroke: a.color, "stroke-width": 2 }, svg);
+    rows.forEach(r => el("circle", { cx: xs(r.round), cy: ys(r.eval_overall), r: 3.5, fill: a.color, stroke: "var(--surface)", "stroke-width": 1.5 }, svg)
+      .appendChild(document.createElementNS(NS, "title")).textContent = `${a.name} · round ${r.round} · ${pct(r.eval_overall)}`);
+    const last = rows[rows.length - 1];
+    labels.push({ y: ys(last.eval_overall), x: xs(last.round), text: pct(last.eval_overall), color: a.color });
+  });
+  labels.sort((p, q) => p.y - q.y);
+  for (let i = 1; i < labels.length; i++) if (labels[i].y - labels[i - 1].y < 14) labels[i].y = labels[i - 1].y + 14;
+  labels.forEach(l => el("text", { x: l.x + 8, y: l.y + 4, style: `fill:var(--ink);font-weight:600` }, svg).textContent = l.text);
+}
+
+async function refresh() {
+  const data = {}, ref = {};
+  await Promise.all(ARMS.map(async a => {
+    data[a.id] = await readLog(`../runs/arm_${a.id}/seed${SEED}/log.jsonl`);
+    ref[a.id] = await readLog(`../runs/one_round/arm_${a.id}/seed0/log.jsonl`);
+  }));
+
+  // per-arm round time: measured if available, else the one-round run's
+  const perRound = {};
+  ARMS.forEach(a => {
+    const rows = (data[a.id] || []).filter(r => r.round > 0);
+    const src = rows.length ? rows : (ref[a.id] || []).filter(r => r.round > 0);
+    perRound[a.id] = src.length ? src.reduce((s, r) => s + roundSecs(r), 0) / src.length : 180;
+  });
+
+  let eta = 0, anyRunning = false;
+  document.getElementById("cards").innerHTML = ARMS.map(a => {
+    const rows = data[a.id] || [];
+    const done = Math.max(0, rows.length - 1);
+    const state = rows.length === 0 ? "waiting" : done >= ROUNDS ? "done" : "running";
+    if (state === "running") anyRunning = true;
+    const remaining = (ROUNDS - done) * perRound[a.id] + (rows.length ? 0 : 35);
+    if (state !== "done") eta += remaining;
+    const last = rows[rows.length - 1], first = rows[0];
+    const lastRound = rows.filter(r => r.round > 0).pop();
+    return `<div class="card">
+      <div class="head"><span class="name"><i style="background:${a.color}"></i>${a.name}</span><span class="state ${state}">${state}</span></div>
+      <div class="big">${last ? pct(last.eval_overall) : "–"}<small>${last ? "round " + last.round : "not started"}</small></div>
+      <div class="bar"><span style="width:${done / ROUNDS * 100}%;background:${a.color}"></span></div>
+      <div class="kv">
+        <span>Rounds done</span><b>${done} / ${ROUNDS}</b>
+        <span>Change from round 0</span><b>${last && first ? (last.eval_overall >= first.eval_overall ? "+" : "") + ((last.eval_overall - first.eval_overall) * 100).toFixed(1) + " pts" : "–"}</b>
+        <span>Time per round</span><b>${mins(perRound[a.id])}${(data[a.id] || []).length > 1 ? "" : " (est.)"}</b>
+        <span>Generated tokens</span><b>${rows.reduce((s, r) => s + (r.generated_tokens || 0), 0).toLocaleString("en-US")}</b>
+        ${a.id === "bkey" ? `<span>Answer-key examples</span><b>${rows.reduce((s, r) => s + (r.fallback || 0), 0).toLocaleString("en-US")}</b>` : ""}
+        ${lastRound && lastRound.shortfall ? `<span class="err">Shortfall last round</span><b class="err">${lastRound.shortfall}</b>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("legend").innerHTML = ARMS.map(a => `<span><i style="background:${a.color}"></i>${a.name}</span>`).join("");
+  chart(data);
+
+  const aRows = (data.a || []).filter(r => r.round > 0);
+  document.getElementById("edges").innerHTML = aRows.length
+    ? aRows.map(r => `<div class="edge"><span>Round ${r.round}</span><b>${r.edge.join(", ")}</b></div>`).join("")
+    : `<span class="empty">Appears after Arm A's first round.</span>`;
+
+  const lens = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const lr = ARMS.map(a => ({ a, row: (data[a.id] || []).slice(-1)[0], base: (data[a.id] || [])[0] }));
+  document.getElementById("lengths").innerHTML = `<tr><th>Arm</th><th>Round</th>${lens.map(d => `<th>${d}</th>`).join("")}</tr>` +
+    lr.map(({ a, row, base }) => row ? `<tr><td>${a.name}</td><td>${row.round}</td>${lens.map(d => {
+      const v = row.eval[d], b0 = base.eval[d], up = v - b0;
+      return `<td title="round 0: ${pct(b0)}">${Math.round(v * 100)}%<br><span style="color:var(--ink-3);font-size:11px">${up >= 0 ? "+" : ""}${Math.round(up * 100)}</span></td>`;
+    }).join("")}</tr>` : `<tr><td>${a.name}</td><td colspan="10" style="text-align:left;color:var(--ink-3)">not started</td></tr>`).join("");
+
+  const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  document.getElementById("updated").textContent = anyRunning || eta > 0
+    ? `updated ${now} · about ${mins(eta)} left · refreshes every 15 s`
+    : `updated ${now} · all arms finished`;
+}
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>
