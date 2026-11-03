@@ -197,7 +197,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
   <nav class="tabs" role="tablist" aria-label="Report views">
     <button role="tab" id="tab-report" aria-controls="view-report" aria-selected="true" data-view="report">Report</button>
-    <button role="tab" id="tab-results" aria-controls="view-results" aria-selected="false" data-view="results">Ten rounds <span class="count">seed 0</span></button>
+    <button role="tab" id="tab-results" aria-controls="view-results" aria-selected="false" data-view="results">Ten rounds <span class="count" id="r-count"></span></button>
     <button role="tab" id="tab-samples" aria-controls="view-samples" aria-selected="false" data-view="samples">Samples <span class="count">1,800</span></button>
   </nav>
 
@@ -215,7 +215,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
       <dt>Measured</dt><dd>Learning efficiency: held-out accuracy per round, overall and per length, and the longest length the model solves at least half the time.</dd>
       <dt>Not measured</dt><dd>General reasoning or transfer to other tasks. In this first version the model chooses the difficulty, not the problems themselves.</dd>
       <dt>Success</dt><dd>Arm A sits above Arm B at matched rounds across all 3 seeds, or reaches longer sums.</dd>
-      <dt>This report</dt><dd>The Report tab covers the untrained baseline, the starting point every arm is compared against. The <a href="#results" data-goto="results">Ten rounds</a> tab has the first full run of all three arms (seed 0). Seeds 1 and 2 are still to come.</dd>
+      <dt>This report</dt><dd>The Report tab covers the untrained baseline, the starting point every arm is compared against. The <a href="#results" data-goto="results">Ten rounds</a> tab has the full run: all three arms, 10 rounds, seeds 0, 1 and 2.</dd>
     </dl>
   </section>
 
@@ -460,25 +460,25 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <section>
       <div class="prose stack">
         <h2>Ten rounds, three arms</h2>
-        <p class="lede" style="font-size:19px">After 10 rounds the three arms finish <b>effectively tied</b>. Arm A, which picks its own problems, reached 80% one round earlier than Arm B, but its edge hit the 10-digit ceiling by round 4, and the fixed mix caught up.</p>
-        <p class="meta">Seed 0 only · 512 training examples per round · held-out set of 1,800 problems, greedy · run 3 Nov 2026 on an M4 Pro</p>
+        <p class="lede" style="font-size:19px">Across three seeds, <b>the self-curriculum finishes ahead</b>: Arm A averages 86.2% after 10 rounds against 80.3% for the fixed mix, and it is ahead on every seed. The fixed mix is faster at first, leading after round 1 on every seed, and the gain from Arm A is almost all on long sums.</p>
+        <p class="meta" id="r-meta"></p>
       </div>
-      <div class="facts">
-        <div class="fact"><b>84.2%</b><span>Arm A final, self-curriculum</span></div>
-        <div class="fact"><b>83.8%</b><span>Arm B final, fixed mix</span></div>
-        <div class="fact"><b>83.6%</b><span>Arm B+key final, with answer key</span></div>
-        <div class="fact"><b>±1.7</b><span>points, 95% interval on any one final score</span></div>
+      <div class="controls">
+        <label class="ctl" style="min-width:220px">Seed
+          <select id="r-seed"></select>
+        </label>
       </div>
+      <div class="facts" id="r-facts"></div>
     </section>
 
     <section>
       <div class="prose stack">
         <h2><span class="sec">R1</span>Accuracy by round</h2>
-        <p>All three arms start from the same 43.9% (round 0, evaluated in the training precision). They climb quickly for 3–4 rounds, then move up slowly with large swings from round to round.</p>
+        <p>All three arms start from the same 43.9% (round 0, evaluated in the training precision). Arm B jumps furthest in round 1 (72.4% against Arm A's 62.1%, mean of three seeds), because it practises every length at once while Arm A trains only at 5–6 digits. By round 3 Arm A is ahead on every seed and keeps climbing; Arm B flattens out near 78–80%. Seed 0 alone made this look like a tie; seeds 1 and 2 did not.</p>
       </div>
       <figure>
         <div class="ftitle">Held-out accuracy after each round</div>
-        <div class="fsub">All 1,800 held-out problems. The dashed line marks 80%. Hover a round for all three values.</div>
+        <div class="fsub" id="r-acc-sub"></div>
         <div class="legend" id="r-acc-legend"></div>
         <div class="chart" id="r-acc"></div>
         <details><summary>Show as table</summary><div class="tbl-wrap"><table id="r-acc-table"></table></div></details>
@@ -491,11 +491,11 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <section>
       <div class="prose stack">
         <h2><span class="sec">R2</span>Where Arm A chose to train</h2>
-        <p>Each round Arm A probes 64 fresh problems per length and trains on lengths it gets 30–70% right. The edge moved from 5–6 digits to 8–10 within four rounds. After that there was nothing harder to move to: the task stops at 10 digits, so from round 4 the self-curriculum stayed on 7–10 digits, mostly 8–10.</p>
+        <p>Each round Arm A probes 64 fresh problems per length and trains on lengths it gets 30–70% right. On every seed the edge moved from 5–6 digits to 8–10 within two to four rounds and stayed on 7–10 digits after that. Late in training the model often scored above 70% at every length, so no length qualified and it fell back to the single length closest to 50%, usually 9 or 10 digits. The task stops at 10 digits, so the edge had nowhere further to go.</p>
       </div>
       <figure>
         <div class="ftitle">Arm A's probe accuracy, round by round</div>
-        <div class="fsub">Each cell is the probe accuracy at the start of the round. Outlined cells are the edge the model chose to train on.</div>
+        <div class="fsub" id="r-edge-sub"></div>
         <div class="chart" id="r-edge"></div>
       </figure>
     </section>
@@ -503,11 +503,11 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <section>
       <div class="prose stack">
         <h2><span class="sec">R3</span>Final accuracy by length</h2>
-        <p>Each arm ends slightly ahead where it practised most: Arm A at 8–10 digits, Arm B at 4–5. With 200 problems per length the 95% interval is about ±6 points, so none of these gaps is clear yet.</p>
+        <p>The arms are level on 2–5-digit sums. Arm A's lead opens at 6 digits and grows with length, reaching 15 points at 10 digits (75.7% against 60.5%, mean of three seeds). Averaged over three seeds each length has 600 problems, so the 95% interval is about ±3.5 points; the gaps at 8–10 digits are well outside it.</p>
       </div>
       <figure>
         <div class="ftitle">Held-out accuracy by length after round 10</div>
-        <div class="fsub">The grey dashed line is round 0, before training.</div>
+        <div class="fsub" id="r-len-sub"></div>
         <div class="legend" id="r-len-legend"></div>
         <div class="chart" id="r-len"></div>
         <details><summary>Show as table</summary><div class="tbl-wrap"><table id="r-len-table"></table></div></details>
@@ -517,7 +517,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <section>
       <div class="prose stack">
         <h2><span class="sec">R4</span>What each arm cost</h2>
-        <p>Training is matched at 512 examples per round. Inference isn't: Arm A pays for its probe, and the arms without an answer key pay for rejected tries on long sums.</p>
+        <p>Training is matched at 512 examples per round. Inference isn't: Arm A pays for its probe, and the arms without an answer key pay for rejected tries on long sums. Arm A still generated slightly fewer tokens than Arm B.</p>
       </div>
       <div class="tbl-wrap"><table id="r-cost"></table></div>
     </section>
@@ -525,22 +525,24 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <section class="prose">
       <h2><span class="sec">R5</span>Insights</h2>
       <ol class="insights">
-        <li><h3>No winner after 10 rounds.</h3><p>The three finals sit within 0.6 points of each other, well inside the ±1.7-point interval of a single score and far smaller than the 2–8-point swings each arm shows between rounds.</p></li>
-        <li><h3>Arm A got to 80% first.</h3><p>It crossed 80% at round 3, against round 4 for Arm B and round 5 for Arm B+key, even though Arm B led in rounds 1–2. That is the "learns faster" claim, but it is one seed and one crossing.</p></li>
-        <li><h3>The task ran out of difficulty.</h3><p>Arm A's edge reached 8–10 digits by round 4 and never left 7–10 after that. From then on it had no harder problems to move to, which is when Arm B caught up. A range of 2–10 digits is too short to test the hypothesis properly; extending to 15–20 digits would let the edge keep climbing.</p></li>
-        <li><h3>Each arm improved where it practised.</h3><p>Arm A ends ahead at 8–10 digits and Arm B at 4–5, consistent with where each spent its examples, though each gap is within the per-length noise.</p></li>
-        <li><h3>The answer key stopped helping.</h3><p>Arm B+key led after round 1, when 258 of its 512 examples came from the key. It then fell behind and finished last despite 923 key examples in total, at under half the generation cost.</p></li>
-        <li><h3>Training is jumpy.</h3><p>Every arm lost 2–8 points in at least one round. Arm B's round 6 fell at every length (6 digits went from 74% to 60%), which looks like an unstable update rather than sampling noise. A fresh optimizer each round at learning rate 2e-4 is the likely cause.</p></li>
-        <li><h3>Compute ended up close.</h3><p>Arm B's first round was expensive (105k tokens, mostly failed tries at 8–10 digits). Over 10 rounds Arm A generated 353k tokens and Arm B 371k.</p></li>
+        <li><h3>The self-curriculum wins, on every seed.</h3><p>Arm A finishes ahead of Arm B by 0.4, 7.2 and 10.1 points on seeds 0, 1 and 2 (mean 5.9). It is also ahead over rounds 6–10 on every seed. Three seeds is a small sample, so this is a consistent direction rather than a settled result: a paired test across seeds gives about p = 0.09 one-sided.</p></li>
+        <li><h3>Fixed mix is faster at the start; self-curriculum is better later.</h3><p>Arm B leads after round 1 on all three seeds, by 10 points on average, because it trains on every length at once. Arm A is ahead by round 3 on every seed and keeps improving while Arm B levels off. The hypothesis said "learns faster"; the data say "learns further".</p></li>
+        <li><h3>The gain is on long sums.</h3><p>Both arms end level on 2–5 digits. Arm A is ahead at 6–10 digits, by 15 points at 10 digits, which is where it spent almost all its training after round 3.</p></li>
+        <li><h3>Seed 0 alone was misleading.</h3><p>On seed 0 the arms finished within 0.6 points and looked tied. Seeds 1 and 2 put Arm A 7–10 points ahead. One seed of a small LoRA run is not enough to compare curricula.</p></li>
+        <li><h3>The answer key did not help.</h3><p>Arm B+key averaged 80.4%, the same as Arm B, despite 923–1,221 answer-key examples per run. Its only lead came in round 1, on two of three seeds, and it was the least stable arm, including a 12.5-point drop in one round on seed 1.</p></li>
+        <li><h3>Arm A was also steadier.</h3><p>Its worst one-round drop was 5.7, 1.9 and 0.4 points on the three seeds, against 7.8, 2.3 and 5.0 for Arm B. Training at the edge appears to cause fewer destabilising updates than a uniform mix, though every arm still swings from round to round.</p></li>
+        <li><h3>No extra compute.</h3><p>Arm A generated about 347k tokens per run on average, against 372k for Arm B. The probe costs less than the failed tries Arm B spends on long sums it cannot yet solve.</p></li>
+        <li><h3>The difficulty range is now the limit.</h3><p>Arm A's edge reached the top of the 2–10-digit range by round 2–4 and then had to fall back to the closest length, often above 70% accuracy. A longer range would show whether its lead keeps growing.</p></li>
       </ol>
     </section>
 
     <section class="prose">
-      <h2><span class="sec">R6</span>Before calling a result</h2>
+      <h2><span class="sec">R6</span>Next steps</h2>
       <ul class="plain">
-        <li><b>Run seeds 1 and 2</b> for all three arms (about 2.5 hours) to see whether Arm A's earlier crossing holds.</li>
-        <li><b>Extend the task</b> to longer sums, for example 2–20 digits, so the edge has room to keep moving.</li>
-        <li><b>Steady the training,</b> for example by keeping the optimizer state between rounds or lowering the learning rate, to shrink the round-to-round swings before comparing arms.</li>
+        <li><b>More seeds</b> (for example 5–10) to turn a consistent direction into a firm result.</li>
+        <li><b>Extend the task</b> to longer sums, for example 2–20 digits, so the edge keeps moving instead of falling back to the closest length.</li>
+        <li><b>Steady the training,</b> for example by keeping the optimizer state between rounds or lowering the learning rate, and check whether Arm A's advantage survives when Arm B is less jumpy.</li>
+        <li><b>Try a mixed curriculum</b> that keeps some easy problems alongside the edge, to see whether it keeps Arm B's fast start and Arm A's late gains.</li>
       </ul>
     </section>
   </div>
@@ -849,117 +851,169 @@ function bindHit(node, tip, host, html, anchor) {
     ["Draw problems", "uniform over 2–10 digits", true, 2],
     ["Sample", "4 tries, temp 0.8"], ["Keep or key", "else true answer", true], ["LoRA train", "1 epoch"], ["Evaluate", "1,800 held-out"]]);
 })();
-/* 8. ten-round results */
+/* 8. ten-round results, one or more seeds */
 (function () {
   if (!R) return;
+  const SEEDS = Object.keys(R);
   const ARMS = [["a", "Arm A · self-curriculum", "var(--s1)"], ["b", "Arm B · fixed mix", "var(--s2)"], ["bkey", "Arm B+key · reference", "var(--s3)"]];
+  const LENS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
   const legend = ARMS.map(a => `<span><i style="background:${a[2]}"></i>${a[1]}</span>`).join("");
   const fmt = n => n.toLocaleString("en-US");
+  const avg = xs => xs.reduce((t, x) => t + x, 0) / xs.length;
+  const short = n => n.split(" · ")[0];
+  document.getElementById("r-count").textContent = SEEDS.length === 1 ? "seed " + SEEDS[0] : SEEDS.length + " seeds";
+  document.getElementById("r-acc-legend").innerHTML = legend;
+  document.getElementById("r-len-legend").innerHTML = legend + `<span><i style="background:var(--ink-3)"></i>Round 0, before training</span>`;
+
+  const sel = document.getElementById("r-seed");
+  sel.innerHTML = (SEEDS.length > 1 ? `<option value="all">All ${SEEDS.length} seeds (mean and range)</option>` : "") +
+    SEEDS.map(x => `<option value="${x}">Seed ${x}</option>`).join("");
+  sel.closest(".controls").hidden = SEEDS.length < 2;
+
+  // per arm and round: values across the chosen seeds
+  function view(choice) {
+    const seeds = choice === "all" ? SEEDS : [choice];
+    const V = {};
+    ARMS.forEach(([k]) => {
+      V[k] = R[seeds[0]][k].map((_, r) => {
+        const xs = seeds.map(sd => R[sd][k][r]);
+        const os = xs.map(x => x.o);
+        const e = {}; LENS.forEach(d => { e[d] = avg(xs.map(x => x.e[d])); });
+        return { r, o: avg(os), lo: Math.min(...os), hi: Math.max(...os), e, tok: avg(xs.map(x => x.tok || 0)), fb: avg(xs.map(x => x.fb || 0)), sec: avg(xs.map(x => x.sec || 0)) };
+      });
+    });
+    return { seeds, V, many: seeds.length > 1 };
+  }
   const first80 = rs => (rs.find(x => x.r > 0 && x.o >= 0.8) || {}).r;
-  const mean = rs => rs.filter(x => x.r > 0).reduce((t, x) => t + x.o, 0) / (rs.length - 1);
 
-  /* R1 accuracy by round */
-  {
-    const host = document.getElementById("r-acc");
-    document.getElementById("r-acc-legend").innerHTML = legend;
-    const W = 860, H = 360, m = { l: 52, r: 76, t: 16, b: 46 }, lo = 0.4, hi = 0.9;
-    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Held-out accuracy by round for three arms; all start at 43.9% and end between 83.6% and 84.2%" }, host);
-    const xs = r => m.l + 12 + r / 10 * (W - m.l - m.r - 24);
-    const ys = p => m.t + (hi - p) / (hi - lo) * (H - m.t - m.b);
-    for (let v = lo; v <= hi + 1e-9; v += 0.1) {
-      el("line", { x1: m.l, x2: W - m.r, y1: ys(v), y2: ys(v), stroke: "var(--rule-soft)" }, svg);
-      const t = el("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, svg); t.textContent = Math.round(v * 100) + "%";
-    }
-    el("line", { x1: m.l, x2: W - m.r, y1: ys(0.8), y2: ys(0.8), stroke: "var(--ink-3)", "stroke-dasharray": "4 4" }, svg);
-    for (let r = 0; r <= 10; r++) { const t = el("text", { x: xs(r), y: H - m.b + 20, "text-anchor": "middle" }, svg); t.textContent = r; }
-    const at = el("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", class: "axis-title" }, svg); at.textContent = "round";
-    ARMS.forEach(([k, , c]) => {
-      el("path", { d: R[k].map((x, i) => (i ? "L" : "M") + xs(x.r) + " " + ys(x.o)).join(""), fill: "none", stroke: c, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
-      R[k].forEach(x => el("circle", { cx: xs(x.r), cy: ys(x.o), r: 4, fill: c, stroke: "var(--surface)", "stroke-width": 2 }, svg));
-    });
-    // end labels, nudged apart so close finals don't overlap
-    const ends = ARMS.map(([k, , c]) => ({ v: R[k][10].o, c, y: ys(R[k][10].o) })).sort((a, b) => a.y - b.y);
-    for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 15);
-    ends.forEach(e => { const t = el("text", { x: xs(10) + 12, y: e.y + 4, style: "font-weight:600;fill:var(--ink)" }, svg); t.textContent = pct(e.v); el("rect", { x: xs(10) + 58, y: e.y - 4, width: 8, height: 8, rx: 2, fill: e.c }, svg); });
-    const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink-3)", "stroke-width": 1, opacity: 0 }, svg);
-    const tip = tipper(host);
-    for (let r = 0; r <= 10; r++) {
-      const hit = el("rect", { x: xs(r) - (xs(1) - xs(0)) / 2, y: m.t, width: xs(1) - xs(0), height: H - m.t - m.b, fill: "transparent" }, svg);
-      bindHit(hit, tip, host, `<b>Round ${r}</b><br>` + ARMS.map(([k, n]) => `${n.split(" · ")[0]} ${pct(R[k][r].o)}`).join("<br>"),
-        rr => [rr.left + rr.width / 2, svg.getBoundingClientRect().top + ys(Math.max(...ARMS.map(a => R[a[0]][r].o))) * svg.getBoundingClientRect().height / H - 8]);
-      hit.addEventListener("mouseenter", () => { cross.setAttribute("x1", xs(r)); cross.setAttribute("x2", xs(r)); cross.setAttribute("opacity", 0.6); });
-      hit.addEventListener("mouseleave", () => cross.setAttribute("opacity", 0));
-    }
-    document.getElementById("r-acc-table").innerHTML = "<tr><th>Round</th>" + ARMS.map(a => `<th>${a[1]}</th>`).join("") + "</tr>" +
-      R.a.map((_, r) => `<tr><td>${r}</td>${ARMS.map(([k]) => `<td>${pct(R[k][r].o)}</td>`).join("")}</tr>`).join("");
-    document.getElementById("r-sum").innerHTML = "<tr><th>Arm</th><th>Final</th><th>Mean, rounds 1–10</th><th>Best round</th><th>First round ≥ 80%</th><th>Largest drop</th></tr>" +
-      ARMS.map(([k, n]) => {
-        const rs = R[k], best = rs.reduce((b, x) => x.o > b.o ? x : b);
-        const drop = Math.min(...rs.slice(1).map((x, i) => x.o - rs[i].o));
-        return `<tr><td>${n}</td><td>${pct(rs[10].o)}</td><td>${pct(mean(rs))}</td><td>${pct(best.o)} (round ${best.r})</td><td>${first80(rs) ?? "–"}</td><td>${(drop * 100).toFixed(1)} pts</td></tr>`;
-      }).join("");
-  }
+  function render(choice) {
+    const { seeds, V, many } = view(choice);
+    const n = seeds.length, label = many ? `mean of ${n} seeds` : `seed ${seeds[0]}`;
+    document.getElementById("r-meta").textContent = `${SEEDS.length === 1 ? "Seed " + SEEDS[0] + " only" : "Seeds " + SEEDS.join(", ")} · 512 training examples per round · held-out set of 1,800 problems, greedy · M4 Pro`;
+    const half = p => 1.96 * Math.sqrt(p * (1 - p) / 1800) * 100;
+    document.getElementById("r-facts").innerHTML = ARMS.map(([k, name]) => {
+      const f = V[k][10];
+      const rng = many ? ` · range ${pct(f.lo)}–${pct(f.hi)}` : "";
+      return `<div class="fact"><b>${pct(f.o)}</b><span>${name.replace(" · ", " final, ")}${rng}</span></div>`;
+    }).join("") + (many
+      ? (() => { const d = seeds.map(sd => (R[sd].a[10].o - R[sd].b[10].o) * 100); const m = avg(d); return `<div class="fact"><b>${m >= 0 ? "+" : ""}${m.toFixed(1)}</b><span>points, Arm A over Arm B · ahead on ${d.filter(x => x > 0).length} of ${d.length} seeds</span></div>`; })()
+      : `<div class="fact"><b>±${half(V.a[10].o).toFixed(1)}</b><span>points, 95% interval on one seed's final score</span></div>`);
 
-  /* R2 Arm A edge path */
-  {
-    const host = document.getElementById("r-edge");
-    const rows = R.a.filter(x => x.probe), cw = 64, ch = 30, lw = 84, top = 26;
-    const W = lw + 9 * cw + 10, H = top + rows.length * ch + 44;
-    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Arm A probe accuracy per round and length; the chosen edge moves from 5–6 digits in round 1 to 8–10 digits by round 4" }, host);
-    for (let d = 2; d <= 10; d++) { const t = el("text", { x: lw + (d - 2) * cw + cw / 2, y: top - 10, "text-anchor": "middle" }, svg); t.textContent = d + "d"; }
-    const tip = tipper(host);
-    rows.forEach((x, ri) => {
-      const y = top + ri * ch;
-      const lab = el("text", { x: lw - 12, y: y + ch / 2 + 4, "text-anchor": "end" }, svg); lab.textContent = "round " + x.r;
-      for (let d = 2; d <= 10; d++) {
-        const p = x.probe[d], cx = lw + (d - 2) * cw, inEdge = x.edge.includes(d), mix = (1 - p) * 100;
-        const r = el("rect", { x: cx + 2, y: y + 2, width: cw - 4, height: ch - 4, rx: 3, fill: `color-mix(in oklab, var(--seq) ${mix.toFixed(0)}%, var(--rule-soft))`, stroke: inEdge ? "var(--ink)" : "none", "stroke-width": 2 }, svg);
-        const t = el("text", { x: cx + cw / 2, y: y + ch / 2 + 4, "text-anchor": "middle", style: `font-size:11px;fill:${mix > 52 ? "var(--on-seq)" : "var(--ink)"};${inEdge ? "font-weight:600" : ""}` }, svg);
-        t.textContent = Math.round(p * 100) + "%";
-        bindHit(r, tip, host, `<b>Round ${x.r} · ${d} digits</b><br>probe ${pct(p)} · ${inEdge ? "trained on (edge)" : "not chosen"}`);
+    /* R1 accuracy by round */
+    {
+      const host = document.getElementById("r-acc"); host.innerHTML = "";
+      document.getElementById("r-acc-sub").textContent = many
+        ? `Mean of ${n} seeds on all 1,800 held-out problems; shading spans the lowest to highest seed. The dashed line marks 80%.`
+        : `Seed ${seeds[0]}, all 1,800 held-out problems. The dashed line marks 80%. Hover a round for all three values.`;
+      const W = 860, H = 360, m = { l: 52, r: 76, t: 16, b: 46 }, lo = 0.4, hi = 0.9;
+      const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Held-out accuracy by round for three arms, ${label}` }, host);
+      const xs = r => m.l + 12 + r / 10 * (W - m.l - m.r - 24);
+      const ys = p => m.t + (hi - Math.max(lo, p)) / (hi - lo) * (H - m.t - m.b);
+      for (let v = lo; v <= hi + 1e-9; v += 0.1) {
+        el("line", { x1: m.l, x2: W - m.r, y1: ys(v), y2: ys(v), stroke: "var(--rule-soft)" }, svg);
+        const t = el("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, svg); t.textContent = Math.round(v * 100) + "%";
       }
-    });
-    const lg = top + rows.length * ch + 26;
-    el("rect", { x: lw + 2, y: lg - 10, width: 22, height: 14, rx: 3, fill: "none", stroke: "var(--ink)", "stroke-width": 2 }, svg);
-    const t1 = el("text", { x: lw + 32, y: lg + 1, class: "axis-title" }, svg); t1.textContent = "edge chosen for training";
-    const t2 = el("text", { x: W - 10, y: lg + 1, "text-anchor": "end", class: "axis-title" }, svg); t2.textContent = "darker = lower probe accuracy";
-  }
-
-  /* R3 final per length */
-  {
-    const host = document.getElementById("r-len");
-    document.getElementById("r-len-legend").innerHTML = legend + `<span><i style="background:var(--ink-3)"></i>Round 0, before training</span>`;
-    const W = 860, H = 320, m = { l: 52, r: 20, t: 14, b: 46 };
-    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Final accuracy by length for three arms, with round 0 for comparison" }, host);
-    const xs = d => m.l + 15 + (d - 2) / 8 * (W - m.l - m.r - 30);
-    const ys = p => m.t + (1 - p) * (H - m.t - m.b);
-    for (let v = 0; v <= 1.0001; v += 0.25) {
-      el("line", { x1: m.l, x2: W - m.r, y1: ys(v), y2: ys(v), stroke: "var(--rule-soft)" }, svg);
-      const t = el("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, svg); t.textContent = v * 100 + "%";
+      el("line", { x1: m.l, x2: W - m.r, y1: ys(0.8), y2: ys(0.8), stroke: "var(--ink-3)", "stroke-dasharray": "4 4" }, svg);
+      for (let r = 0; r <= 10; r++) { const t = el("text", { x: xs(r), y: H - m.b + 20, "text-anchor": "middle" }, svg); t.textContent = r; }
+      const at = el("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", class: "axis-title" }, svg); at.textContent = "round";
+      if (many) ARMS.forEach(([k, , c]) => {
+        const rs = V[k];
+        el("path", { d: rs.map((x, i) => (i ? "L" : "M") + xs(x.r) + " " + ys(x.hi)).join("") + rs.slice().reverse().map(x => "L" + xs(x.r) + " " + ys(x.lo)).join("") + "Z", fill: c, "fill-opacity": 0.12, stroke: "none" }, svg);
+      });
+      ARMS.forEach(([k, , c]) => {
+        el("path", { d: V[k].map((x, i) => (i ? "L" : "M") + xs(x.r) + " " + ys(x.o)).join(""), fill: "none", stroke: c, "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+        V[k].forEach(x => el("circle", { cx: xs(x.r), cy: ys(x.o), r: 4, fill: c, stroke: "var(--surface)", "stroke-width": 2 }, svg));
+      });
+      const ends = ARMS.map(([k, , c]) => ({ v: V[k][10].o, c, y: ys(V[k][10].o) })).sort((a, b) => a.y - b.y);
+      for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 15);
+      ends.forEach(e => { const t = el("text", { x: xs(10) + 12, y: e.y + 4, style: "font-weight:600;fill:var(--ink)" }, svg); t.textContent = pct(e.v); el("rect", { x: xs(10) + 58, y: e.y - 4, width: 8, height: 8, rx: 2, fill: e.c }, svg); });
+      const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--ink-3)", "stroke-width": 1, opacity: 0 }, svg);
+      const tip = tipper(host);
+      for (let r = 0; r <= 10; r++) {
+        const hit = el("rect", { x: xs(r) - (xs(1) - xs(0)) / 2, y: m.t, width: xs(1) - xs(0), height: H - m.t - m.b, fill: "transparent" }, svg);
+        bindHit(hit, tip, host, `<b>Round ${r}</b>${many ? " · mean (range)" : ""}<br>` + ARMS.map(([k, nm]) => `${short(nm)} ${pct(V[k][r].o)}${many ? ` (${pct(V[k][r].lo)}–${pct(V[k][r].hi)})` : ""}`).join("<br>"),
+          rr => [rr.left + rr.width / 2, svg.getBoundingClientRect().top + ys(Math.max(...ARMS.map(a => V[a[0]][r].hi))) * svg.getBoundingClientRect().height / H - 8]);
+        hit.addEventListener("mouseenter", () => { cross.setAttribute("x1", xs(r)); cross.setAttribute("x2", xs(r)); cross.setAttribute("opacity", 0.6); });
+        hit.addEventListener("mouseleave", () => cross.setAttribute("opacity", 0));
+      }
+      document.getElementById("r-acc-table").innerHTML = "<tr><th>Round</th>" + ARMS.map(a => `<th>${a[1]}</th>`).join("") + "</tr>" +
+        V.a.map((_, r) => `<tr><td>${r}</td>${ARMS.map(([k]) => `<td>${pct(V[k][r].o)}${many ? ` <span style="color:var(--ink-3)">${pct(V[k][r].lo)}–${pct(V[k][r].hi)}</span>` : ""}</td>`).join("")}</tr>`).join("");
+      // summary: per seed where it matters (first crossing, drops), averaged when several
+      const perSeed = (k, f) => seeds.map(sd => f(R[sd][k]));
+      document.getElementById("r-sum").innerHTML = `<tr><th>Arm</th><th>Final</th><th>Mean, rounds 1–10</th><th>First round ≥ 80%${many ? ", per seed" : ""}</th><th>Largest drop${many ? ", worst seed" : ""}</th><th>Final, per seed</th></tr>` +
+        ARMS.map(([k, nm]) => {
+          const meanR = avg(perSeed(k, rs => avg(rs.slice(1).map(x => x.o))));
+          const firsts = perSeed(k, rs => first80(rs) ?? "–").join(", ");
+          const drop = Math.min(...perSeed(k, rs => Math.min(...rs.slice(1).map((x, i) => x.o - rs[i].o))));
+          return `<tr><td>${nm}</td><td>${pct(V[k][10].o)}</td><td>${pct(meanR)}</td><td>${firsts}</td><td>${(drop * 100).toFixed(1)} pts</td><td>${perSeed(k, rs => pct(rs[10].o)).join(", ")}</td></tr>`;
+        }).join("");
     }
-    for (let d = 2; d <= 10; d++) { const t = el("text", { x: xs(d), y: H - m.b + 20, "text-anchor": "middle" }, svg); t.textContent = d; }
-    const at = el("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", class: "axis-title" }, svg); at.textContent = "digits per operand";
-    const D2 = [2, 3, 4, 5, 6, 7, 8, 9, 10];
-    el("path", { d: D2.map((d, i) => (i ? "L" : "M") + xs(d) + " " + ys(R.a[0].e[d])).join(""), fill: "none", stroke: "var(--ink-3)", "stroke-width": 2, "stroke-dasharray": "5 4" }, svg);
-    ARMS.forEach(([k, , c]) => {
-      el("path", { d: D2.map((d, i) => (i ? "L" : "M") + xs(d) + " " + ys(R[k][10].e[d])).join(""), fill: "none", stroke: c, "stroke-width": 2 }, svg);
-      D2.forEach(d => el("circle", { cx: xs(d), cy: ys(R[k][10].e[d]), r: 4, fill: c, stroke: "var(--surface)", "stroke-width": 2 }, svg));
-    });
-    const tip = tipper(host);
-    D2.forEach(d => {
-      const hit = el("rect", { x: xs(d) - 40, y: m.t, width: 80, height: H - m.t - m.b, fill: "transparent" }, svg);
-      bindHit(hit, tip, host, `<b>${d} digits</b><br>` + ARMS.map(([k, n]) => `${n.split(" · ")[0]} ${pct(R[k][10].e[d])}`).join("<br>") + `<br>Round 0 ${pct(R.a[0].e[d])}`,
-        rr => [rr.left + rr.width / 2, svg.getBoundingClientRect().top + ys(Math.max(...ARMS.map(a => R[a[0]][10].e[d]))) * svg.getBoundingClientRect().height / H - 8]);
-    });
-    document.getElementById("r-len-table").innerHTML = "<tr><th>Digits</th><th>Round 0</th>" + ARMS.map(a => `<th>${a[1]}</th>`).join("") + "</tr>" +
-      D2.map(d => `<tr><td>${d}</td><td>${pct(R.a[0].e[d])}</td>${ARMS.map(([k]) => `<td>${pct(R[k][10].e[d])}</td>`).join("")}</tr>`).join("");
+
+    /* R2 Arm A edge path: always one seed */
+    {
+      const sd = seeds[0];
+      const host = document.getElementById("r-edge"); host.innerHTML = "";
+      document.getElementById("r-edge-sub").textContent = `Seed ${sd}${many ? " (the edge is a per-seed choice, so it isn't averaged; pick a seed above to see the others)" : ""}. Each cell is the probe accuracy at the start of the round. Outlined cells are the edge the model chose to train on.`;
+      const rows = R[sd].a.filter(x => x.probe), cw = 64, ch = 30, lw = 84, top = 26;
+      const W = lw + 9 * cw + 10, H = top + rows.length * ch + 44;
+      const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Arm A probe accuracy per round and length for seed ${sd}, with the chosen edge outlined` }, host);
+      LENS.forEach(d => { const t = el("text", { x: lw + (d - 2) * cw + cw / 2, y: top - 10, "text-anchor": "middle" }, svg); t.textContent = d + "d"; });
+      const tip = tipper(host);
+      rows.forEach((x, ri) => {
+        const y = top + ri * ch;
+        const lab = el("text", { x: lw - 12, y: y + ch / 2 + 4, "text-anchor": "end" }, svg); lab.textContent = "round " + x.r;
+        LENS.forEach(d => {
+          const p = x.probe[d], cx = lw + (d - 2) * cw, inEdge = x.edge.includes(d), mix = (1 - p) * 100;
+          const r = el("rect", { x: cx + 2, y: y + 2, width: cw - 4, height: ch - 4, rx: 3, fill: `color-mix(in oklab, var(--seq) ${mix.toFixed(0)}%, var(--rule-soft))`, stroke: inEdge ? "var(--ink)" : "none", "stroke-width": 2 }, svg);
+          const t = el("text", { x: cx + cw / 2, y: y + ch / 2 + 4, "text-anchor": "middle", style: `font-size:11px;fill:${mix > 52 ? "var(--on-seq)" : "var(--ink)"};${inEdge ? "font-weight:600" : ""}` }, svg);
+          t.textContent = Math.round(p * 100) + "%";
+          bindHit(r, tip, host, `<b>Round ${x.r} · ${d} digits</b><br>probe ${pct(p)} · ${inEdge ? "trained on (edge)" : "not chosen"}`);
+        });
+      });
+      const lg = top + rows.length * ch + 26;
+      el("rect", { x: lw + 2, y: lg - 10, width: 22, height: 14, rx: 3, fill: "none", stroke: "var(--ink)", "stroke-width": 2 }, svg);
+      const t1 = el("text", { x: lw + 32, y: lg + 1, class: "axis-title" }, svg); t1.textContent = "edge chosen for training";
+      const t2 = el("text", { x: W - 10, y: lg + 1, "text-anchor": "end", class: "axis-title" }, svg); t2.textContent = "darker = lower probe accuracy";
+    }
+
+    /* R3 final per length */
+    {
+      const host = document.getElementById("r-len"); host.innerHTML = "";
+      document.getElementById("r-len-sub").textContent = `${many ? `Mean of ${n} seeds. ` : `Seed ${seeds[0]}. `}The grey dashed line is round 0, before training.`;
+      const W = 860, H = 320, m = { l: 52, r: 20, t: 14, b: 46 };
+      const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Final accuracy by length for three arms, ${label}, with round 0 for comparison` }, host);
+      const xs = d => m.l + 15 + (d - 2) / 8 * (W - m.l - m.r - 30);
+      const ys = p => m.t + (1 - p) * (H - m.t - m.b);
+      for (let v = 0; v <= 1.0001; v += 0.25) {
+        el("line", { x1: m.l, x2: W - m.r, y1: ys(v), y2: ys(v), stroke: "var(--rule-soft)" }, svg);
+        const t = el("text", { x: m.l - 8, y: ys(v) + 4, "text-anchor": "end" }, svg); t.textContent = v * 100 + "%";
+      }
+      LENS.forEach(d => { const t = el("text", { x: xs(d), y: H - m.b + 20, "text-anchor": "middle" }, svg); t.textContent = d; });
+      const at = el("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", class: "axis-title" }, svg); at.textContent = "digits per operand";
+      el("path", { d: LENS.map((d, i) => (i ? "L" : "M") + xs(d) + " " + ys(V.a[0].e[d])).join(""), fill: "none", stroke: "var(--ink-3)", "stroke-width": 2, "stroke-dasharray": "5 4" }, svg);
+      ARMS.forEach(([k, , c]) => {
+        el("path", { d: LENS.map((d, i) => (i ? "L" : "M") + xs(d) + " " + ys(V[k][10].e[d])).join(""), fill: "none", stroke: c, "stroke-width": 2 }, svg);
+        LENS.forEach(d => el("circle", { cx: xs(d), cy: ys(V[k][10].e[d]), r: 4, fill: c, stroke: "var(--surface)", "stroke-width": 2 }, svg));
+      });
+      const tip = tipper(host);
+      LENS.forEach(d => {
+        const hit = el("rect", { x: xs(d) - 40, y: m.t, width: 80, height: H - m.t - m.b, fill: "transparent" }, svg);
+        bindHit(hit, tip, host, `<b>${d} digits</b><br>` + ARMS.map(([k, nm]) => `${short(nm)} ${pct(V[k][10].e[d])}`).join("<br>") + `<br>Round 0 ${pct(V.a[0].e[d])}`,
+          rr => [rr.left + rr.width / 2, svg.getBoundingClientRect().top + ys(Math.max(...ARMS.map(a => V[a[0]][10].e[d]))) * svg.getBoundingClientRect().height / H - 8]);
+      });
+      document.getElementById("r-len-table").innerHTML = "<tr><th>Digits</th><th>Round 0</th>" + ARMS.map(a => `<th>${a[1]}</th>`).join("") + "</tr>" +
+        LENS.map(d => `<tr><td>${d}</td><td>${pct(V.a[0].e[d])}</td>${ARMS.map(([k]) => `<td>${pct(V[k][10].e[d])}</td>`).join("")}</tr>`).join("");
+    }
+
+    /* R4 cost, per seed (averaged when several) */
+    {
+      const tot = (k, f) => V[k].reduce((t, x) => t + (x[f] || 0), 0);
+      document.getElementById("r-cost").innerHTML = `<tr><th>Arm</th><th>Examples trained</th><th>Tokens generated${many ? ", per seed" : ""}</th><th>Round 1 tokens</th><th>Answer-key examples</th><th>Wall time${many ? ", per seed" : ""}</th></tr>` +
+        ARMS.map(([k, nm]) => `<tr><td>${nm}</td><td>${fmt(512 * 10)}</td><td>${fmt(Math.round(tot(k, "tok")))}</td><td>${fmt(Math.round(V[k][1].tok))}</td><td>${fmt(Math.round(tot(k, "fb")))}</td><td>${Math.round(tot(k, "sec") / 60)} min</td></tr>`).join("");
+    }
   }
 
-  /* R4 cost */
-  {
-    const tot = (k, f) => R[k].reduce((t, x) => t + (x[f] || 0), 0);
-    document.getElementById("r-cost").innerHTML = "<tr><th>Arm</th><th>Examples trained</th><th>Tokens generated</th><th>Round 1 tokens</th><th>Answer-key examples</th><th>Wall time</th></tr>" +
-      ARMS.map(([k, n]) => `<tr><td>${n}</td><td>${fmt(512 * 10)}</td><td>${fmt(tot(k, "tok"))}</td><td>${fmt(R[k][1].tok)}</td><td>${fmt(tot(k, "fb"))}</td><td>${Math.round(tot(k, "sec") / 60)} min</td></tr>`).join("");
-  }
+  sel.addEventListener("change", () => render(sel.value));
+  render(sel.value);
 })();
 </script>

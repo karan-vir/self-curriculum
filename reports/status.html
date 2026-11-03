@@ -62,6 +62,11 @@ td.cell { position: relative; }
 .edge b { font: 600 14px var(--mono); }
 .empty { color: var(--ink-3); font-size: 14px; }
 .err { color: var(--warn); font-size: 13px; }
+.seeds { display: flex; flex-wrap: wrap; gap: 8px; }
+.seeds button { font: 600 14px var(--display); color: var(--ink-2); background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 14px; cursor: pointer; display: grid; gap: 2px; text-align: left; }
+.seeds button span { font: 500 11px var(--mono); color: var(--ink-3); }
+.seeds button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink-2); }
+.seeds button:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -70,6 +75,7 @@ td.cell { position: relative; }
     <h1>Run Status · seed <span id="seed">0</span></h1>
     <span class="meta" id="updated">loading…</span>
   </div>
+  <div class="seeds" id="seeds" role="group" aria-label="Seed"></div>
   <div class="cards" id="cards"></div>
 
   <div class="panel">
@@ -87,12 +93,12 @@ td.cell { position: relative; }
     <h2>Latest round, accuracy by length</h2>
     <div class="tbl"><table id="lengths"></table></div>
   </div>
-  <p class="meta">Reads <code>runs/arm_&lt;a|b|bkey&gt;/seed&lt;N&gt;/log.jsonl</code> every 15 s. Add <code>?seed=1</code> to the address to watch another seed.</p>
+  <p class="meta">Reads <code>runs/arm_&lt;a|b|bkey&gt;/seed&lt;N&gt;/log.jsonl</code> every 15 s. Opens on the seed that is running; pick another above.</p>
 </div>
 
 <script>
-const SEED = new URLSearchParams(location.search).get("seed") || "0";
-document.getElementById("seed").textContent = SEED;
+const SEEDS = ["0", "1", "2"];
+let SEED = new URLSearchParams(location.search).get("seed");  // null = follow the running seed
 const ARMS = [
   { id: "a", name: "Arm A · self-curriculum", color: "var(--a)" },
   { id: "b", name: "Arm B · fixed curriculum", color: "var(--b)" },
@@ -144,16 +150,37 @@ function chart(data) {
 }
 
 async function refresh() {
-  const data = {}, ref = {};
-  await Promise.all(ARMS.map(async a => {
-    data[a.id] = await readLog(`../runs/arm_${a.id}/seed${SEED}/log.jsonl`);
-    ref[a.id] = await readLog(`../runs/one_round/arm_${a.id}/seed0/log.jsonl`);
+  const all = {}, ref = {};
+  await Promise.all(SEEDS.map(async sd => {
+    all[sd] = {};
+    await Promise.all(ARMS.map(async a => { all[sd][a.id] = await readLog(`../runs/arm_${a.id}/seed${sd}/log.jsonl`); }));
   }));
+  await Promise.all(ARMS.map(async a => { ref[a.id] = await readLog(`../runs/one_round/arm_${a.id}/seed0/log.jsonl`); }));
 
-  // per-arm round time: measured if available, else the one-round run's
+  const doneRounds = rows => Math.max(0, (rows || []).length - 1);
+  const seedState = sd => {
+    const ds = ARMS.map(a => all[sd][a.id]);
+    if (ds.every(r => !r || !r.length)) return "waiting";
+    return ds.every(r => doneRounds(r) >= ROUNDS) ? "done" : "running";
+  };
+  const running = SEEDS.find(sd => seedState(sd) === "running");
+  const shown = SEED || running || [...SEEDS].reverse().find(sd => seedState(sd) !== "waiting") || "0";
+  document.getElementById("seed").textContent = shown;
+  document.getElementById("seeds").innerHTML = SEEDS.map(sd => {
+    const st = seedState(sd), n = ARMS.reduce((t, a) => t + Math.min(ROUNDS, doneRounds(all[sd][a.id])), 0);
+    return `<button type="button" data-seed="${sd}" aria-pressed="${sd === shown}">Seed ${sd}<span>${st} · ${n} / ${ROUNDS * ARMS.length} rounds</span></button>`;
+  }).join("");
+  document.querySelectorAll("#seeds button").forEach(b => b.addEventListener("click", () => {
+    SEED = b.dataset.seed;
+    try { history.replaceState(null, "", "?seed=" + SEED); } catch (e) {}
+    refresh();
+  }));
+  const data = all[shown];
+
+  // per-arm round time: measured on any seed if available, else the one-round run's
   const perRound = {};
   ARMS.forEach(a => {
-    const rows = (data[a.id] || []).filter(r => r.round > 0);
+    const rows = SEEDS.flatMap(sd => all[sd][a.id] || []).filter(r => r.round > 0);
     const src = rows.length ? rows : (ref[a.id] || []).filter(r => r.round > 0);
     perRound[a.id] = src.length ? src.reduce((s, r) => s + roundSecs(r), 0) / src.length : 180;
   });
@@ -199,10 +226,18 @@ async function refresh() {
       return `<td title="round 0: ${pct(b0)}">${Math.round(v * 100)}%<br><span style="color:var(--ink-3);font-size:11px">${up >= 0 ? "+" : ""}${Math.round(up * 100)}</span></td>`;
     }).join("")}</tr>` : `<tr><td>${a.name}</td><td colspan="10" style="text-align:left;color:var(--ink-3)">not started</td></tr>`).join("");
 
+  // time left for everything queued: seeds that have started, and the ones after them
+  const firstQueued = SEEDS.findIndex(sd => seedState(sd) !== "done");
+  let queue = 0;
+  if (firstQueued >= 0) SEEDS.slice(firstQueued).forEach(sd => ARMS.forEach(a => {
+    const rows = all[sd][a.id] || [];
+    queue += Math.max(0, ROUNDS - doneRounds(rows)) * perRound[a.id] + (rows.length ? 0 : 35);
+  }));
   const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  document.getElementById("updated").textContent = anyRunning || eta > 0
-    ? `updated ${now} · about ${mins(eta)} left · refreshes every 15 s`
-    : `updated ${now} · all arms finished`;
+  const finish = new Date(Date.now() + queue * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  document.getElementById("updated").textContent = queue > 0
+    ? `updated ${now} · seed ${shown}: about ${mins(eta)} left · all seeds: about ${mins(queue)}, done near ${finish} · refreshes every 15 s`
+    : `updated ${now} · all seeds finished`;
 }
 refresh();
 setInterval(refresh, 15000);

@@ -114,17 +114,25 @@ uv run python scripts/run_arm.py --arm bkey --rounds 1 --seed 0   # one Arm B+ke
 
 After one round, the fixed curriculum beats the self-curriculum by 8.7 points at the same 512 training examples. Arm A trained only at 5–6 digits and gained most at 7; Arm B trained a little at every length and gained most at 8–10. The answer key adds only 2.7 points on top of Arm B, mostly at 8–10 digits. Arm B pays for its lead in generation: it sampled 2.9× Arm A's tokens to find rare correct answers at long lengths (7% solve rate at 10 digits). One seed and one round: Arm A's edge should move up in later rounds, so the 10-round curves decide the result.
 
-## Ten rounds, all arms (seed 0)
+## Ten rounds, all arms (seeds 0, 1, 2)
+
+Mean held-out accuracy (%) over three seeds:
 
 | Round | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Arm A · self-curriculum | 43.9 | 58.9 | 68.9 | **80.9** | 80.7 | 75.1 | 77.3 | 80.2 | 80.9 | 82.8 | **84.2** |
-| Arm B · fixed curriculum | 43.9 | 67.6 | 74.1 | 73.1 | **80.8** | 78.9 | 71.2 | 77.8 | 81.7 | 84.9 | **83.8** |
-| Arm B+key · reference | 43.9 | 70.3 | 75.3 | 74.9 | 77.5 | **80.1** | 78.1 | 82.1 | 81.8 | 79.2 | **83.6** |
+| Arm A · self-curriculum | 43.9 | 62.1 | 73.6 | 79.7 | 80.3 | 79.4 | 81.4 | 82.5 | 83.7 | 84.9 | **86.2** |
+| Arm B · fixed curriculum | 43.9 | **72.4** | 73.9 | 75.7 | 78.7 | 76.1 | 77.3 | 78.4 | 78.1 | 79.9 | 80.3 |
+| Arm B+key · reference | 43.9 | 73.2 | 72.1 | 68.8 | 74.4 | 77.6 | 74.5 | 78.9 | 78.2 | 78.5 | 80.4 |
 
-Held-out accuracy (%); bold marks the first round at 80% or above and the final. Over 10 rounds Arm A generated 353k tokens, Arm B 371k and Arm B+key 175k (with 923 answer-key examples).
+| | Final, seeds 0 / 1 / 2 | First round ≥ 80% | 10 digits, final | Tokens per run | Answer-key examples |
+| --- | --- | --- | --- | --- | --- |
+| Arm A | 84.2 / 87.3 / 87.1 | 3 / 5 / 4 | 75.7% | 347k | 0 |
+| Arm B | 83.8 / 80.1 / 76.9 | 4 / 10 / 6 | 60.5% | 372k | 0 |
+| Arm B+key | 83.6 / 78.0 / 79.5 | 5 / never / 7 | 61.7% | 175k | 923–1,221 |
 
-The arms finish effectively tied: the finals are within 0.6 points, inside the ±1.7-point 95% interval of one score and smaller than the 2–8-point swings between rounds. Arm A reached 80% first (round 3, against 4 and 5), but its edge climbed from 5–6 to 8–10 digits by round 4 and stayed within 7–10 after that: the task stops at 10 digits, so the self-curriculum had nowhere further to go and the fixed mix caught up. Each arm ends slightly ahead where it practised (A at 8–10 digits, B at 4–5), within per-length noise. The answer key led early and gave no final benefit. Next: seeds 1 and 2, longer sums (e.g. 2–20 digits), and steadier training (keep optimizer state between rounds or lower the learning rate). Charts are in the Ten rounds tab of `reports/baseline.html`; `reports/status.html` shows runs live when the repo is served locally (`python3 -m http.server 8765`), and `scripts/watch.py` shows the same in a terminal.
+The self-curriculum finishes ahead on every seed, by 0.4, 7.2 and 10.1 points (mean 5.9; paired one-sided p ≈ 0.09 with three seeds, so a consistent direction rather than a settled result). Arm B is faster at first, leading after round 1 on every seed because it practises all lengths at once, but Arm A is ahead by round 3 and keeps climbing while Arm B levels off near 80%: it learns further rather than faster. The arms are level on 2–5-digit sums; Arm A's lead grows with length to 15 points at 10 digits. Arm A is also steadier between rounds and generates slightly fewer tokens. The answer key adds nothing over Arm B. Seed 0 alone showed a tie, so a single seed was not enough. Arm A's edge reaches the top of the 2–10-digit range by round 2–4, so a longer range is the natural next test.
+
+Charts are in the Ten rounds tab of `reports/baseline.html`. `reports/status.html` shows runs live when the repo is served locally (`python3 -m http.server 8765`), and `scripts/watch.py` shows the same in a terminal.
 
 ## Roadmap
 
@@ -132,6 +140,8 @@ The arms finish effectively tied: the finals are within 0.6 points, inside the �
 - [x] Baseline accuracy per difficulty for the untrained model
 - [x] Days 3–4: Arm A loop, one round end to end
 - [x] Days 5–6: Arm B with a matched budget (plus Arm B+key reference)
-- [x] Day 7: 10 rounds of all three arms, plots (seed 0)
-- [ ] Seeds 1 and 2; a longer difficulty range
+- [x] Day 7: 10 rounds of all three arms, plots
+- [x] Seeds 1 and 2
+- [ ] A longer difficulty range (e.g. 2–20 digits) and more seeds
+- [ ] Steadier training: keep optimizer state between rounds or lower the learning rate
 - [ ] v2: the model writes its own problems, not only picks the difficulty
