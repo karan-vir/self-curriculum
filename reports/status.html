@@ -66,6 +66,15 @@ td.cell { position: relative; }
 .seeds button { font: 600 14px var(--display); color: var(--ink-2); background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 14px; cursor: pointer; display: grid; gap: 2px; text-align: left; }
 .seeds button span { font: 500 11px var(--mono); color: var(--ink-3); }
 .seeds button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink-2); }
+.health { border-radius: 6px; padding: 12px 16px; font-size: 14px; border: 1px solid var(--rule); background: var(--surface); display: flex; gap: 10px; align-items: baseline; }
+.health b { font-weight: 600; }
+.health.ok b { color: var(--good); }
+.health.warn { border-color: var(--warn); }
+.health.warn b { color: var(--warn); }
+.events { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font: 12px/1.5 var(--mono); color: var(--ink-2); }
+.events li.bad { color: var(--warn); }
+td.win { color: var(--good); }
+td.loss { color: var(--warn); }
 .seeds button:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
 </style>
 </head>
@@ -75,6 +84,7 @@ td.cell { position: relative; }
     <h1>Run Status · seed <span id="seed">0</span></h1>
     <span class="meta" id="updated">loading…</span>
   </div>
+  <div class="health" id="health" role="status"></div>
   <div class="seeds" id="seeds" role="group" aria-label="Seed"></div>
   <div class="cards" id="cards"></div>
 
@@ -93,11 +103,20 @@ td.cell { position: relative; }
     <h2>Latest round, accuracy by length</h2>
     <div class="tbl"><table id="lengths"></table></div>
   </div>
+  <div class="panel">
+    <h2>Final held-out accuracy, finished seeds</h2>
+    <div class="tbl"><table id="finals"></table></div>
+  </div>
+
+  <div class="panel">
+    <h2>Queue events</h2>
+    <ul class="events" id="events"></ul>
+  </div>
   <p class="meta">Reads <code>runs/arm_&lt;a|b|bkey&gt;/seed&lt;N&gt;/log.jsonl</code> every 15 s. Opens on the seed that is running; pick another above.</p>
 </div>
 
 <script>
-const SEEDS = ["0", "1", "2"];
+const SEEDS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 let SEED = new URLSearchParams(location.search).get("seed");  // null = follow the running seed
 const ARMS = [
   { id: "a", name: "Arm A · self-curriculum", color: "var(--a)" },
@@ -115,6 +134,18 @@ async function readLog(path) {
     if (!r.ok) return null;
     return (await r.text()).trim().split("\n").filter(Boolean).map(l => JSON.parse(l));
   } catch (e) { return null; }
+}
+// time the log was last written, from the server's Last-Modified header
+async function lastWrite(path) {
+  try {
+    const r = await fetch(path + "?t=" + Date.now(), { method: "HEAD", cache: "no-store" });
+    const lm = r.ok && r.headers.get("Last-Modified");
+    return lm ? new Date(lm).getTime() : null;
+  } catch (e) { return null; }
+}
+async function readText(path) {
+  try { const r = await fetch(path + "?t=" + Date.now(), { cache: "no-store" }); return r.ok ? await r.text() : ""; }
+  catch (e) { return ""; }
 }
 const roundSecs = row => typeof row.seconds === "number" ? row.seconds : Object.values(row.seconds || {}).reduce((a, b) => a + b, 0);
 
@@ -225,6 +256,49 @@ async function refresh() {
       const v = row.eval[d], b0 = base.eval[d], up = v - b0;
       return `<td title="round 0: ${pct(b0)}">${Math.round(v * 100)}%<br><span style="color:var(--ink-3);font-size:11px">${up >= 0 ? "+" : ""}${Math.round(up * 100)}</span></td>`;
     }).join("")}</tr>` : `<tr><td>${a.name}</td><td colspan="10" style="text-align:left;color:var(--ink-3)">not started</td></tr>`).join("");
+
+  const evAll = (await readText("../runs/seeds3to9.out")).split("\n").filter(l => l.startsWith("=== "));
+  // a restart writes nothing until its first round, so time from the latest start too
+  const lastStart = (() => {
+    const l = [...evAll].reverse().find(x => / start/.test(x)); if (!l) return 0;
+    const [h, m] = l.slice(4, 9).split(":").map(Number), d = new Date(); d.setHours(h, m, 0, 0);
+    if (d > Date.now()) d.setDate(d.getDate() - 1);
+    return d.getTime();
+  })();
+
+  // health: is the running arm still writing rounds at its usual pace?
+  const health = document.getElementById("health");
+  const live = running && ARMS.find(a => { const r = all[running][a.id]; return r && r.length && doneRounds(r) < ROUNDS; });
+  if (live) {
+    const t = await lastWrite(`../runs/arm_${live.id}/seed${running}/log.jsonl`);
+    const quiet = t ? (Date.now() - Math.max(t, lastStart)) / 1000 : 0, limit = Math.max(480, 2.5 * perRound[live.id]);
+    const where = `seed ${running}, ${live.name}, round ${doneRounds(all[running][live.id]) + 1}`;
+    health.className = "health " + (quiet > limit ? "warn" : "ok");
+    health.innerHTML = quiet > limit
+      ? `<b>May be stalled.</b><span>No new round from ${where} for ${mins(quiet)} (a round usually takes ${mins(perRound[live.id])}). The watchdog restarts it after 15 min. Check the charger is plugged in.</span>`
+      : `<b>Running.</b><span>${where} · last progress ${mins(quiet)} ago</span>`;
+  } else {
+    health.className = "health"; health.innerHTML = `<b>${running ? "Between runs" : "Idle"}.</b><span>No arm is writing rounds right now.</span>`;
+  }
+
+  // finals for every seed where all three arms finished
+  const fin = SEEDS.filter(sd => seedState(sd) === "done").map(sd => ({ sd, v: ARMS.map(a => all[sd][a.id].slice(-1)[0].eval_overall) }));
+  const finals = document.getElementById("finals");
+  if (fin.length) {
+    const mean = i => fin.reduce((t, f) => t + f.v[i], 0) / fin.length;
+    const gap = v => { const d = (v[0] - v[1]) * 100; return `<td class="${d > 0 ? "win" : d < 0 ? "loss" : ""}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</td>`; };
+    const ahead = fin.filter(f => f.v[0] > f.v[1]).length;
+    finals.innerHTML = `<tr><th>Seed</th>${ARMS.map(a => `<th>${a.name.split(" · ")[0]}</th>`).join("")}<th>A − B (pts)</th></tr>` +
+      fin.map(f => `<tr><td>Seed ${f.sd}</td>${f.v.map(x => `<td>${pct(x)}</td>`).join("")}${gap(f.v)}</tr>`).join("") +
+      `<tr><td><b>Mean of ${fin.length}</b></td>${ARMS.map((a, i) => `<td><b>${pct(mean(i))}</b></td>`).join("")}${gap([mean(0), mean(1)])}</tr>` +
+      `<tr><td colspan="5" style="text-align:left;color:var(--ink-3);font-family:var(--display)">A ahead of B on ${ahead} of ${fin.length} seeds</td></tr>`;
+  } else finals.innerHTML = `<tr><td class="empty">Appears when a seed finishes all three arms.</td></tr>`;
+
+  // watchdog queue output: start, done, stalls, pauses, restarts
+  const ev = evAll.slice(-12).reverse();
+  document.getElementById("events").innerHTML = ev.length
+    ? ev.map(l => `<li class="${/STALLED|FAILED|paused|exited/.test(l) ? "bad" : ""}">${l.slice(4).replace(/[<&]/g, c => c === "<" ? "&lt;" : "&amp;")}</li>`).join("")
+    : `<li>No queue output yet.</li>`;
 
   // time left for everything queued: seeds that have started, and the ones after them
   const firstQueued = SEEDS.findIndex(sd => seedState(sd) !== "done");

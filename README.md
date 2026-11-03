@@ -43,7 +43,7 @@ A **self-curriculum** closes the loop. Each round, the model is tested across di
 - **Matched training budget:** both arms train on the same number of examples per round, with the same LoRA settings and steps.
 - **Inference is logged, not matched:** Arm A spends extra generation on probing and sampling. Both arms log generated tokens so the cost difference is reported.
 - **No test leakage:** the held-out test set is generated once with a fixed seed. Training problems that appear in it are rejected.
-- **Seeds:** each arm runs with 3 seeds; plots show the mean and range.
+- **Seeds:** each arm runs with 10 seeds (planned as 3, extended after the first results); plots show the mean and range.
 
 ## Measurement
 
@@ -114,23 +114,37 @@ uv run python scripts/run_arm.py --arm bkey --rounds 1 --seed 0   # one Arm B+ke
 
 After one round, the fixed curriculum beats the self-curriculum by 8.7 points at the same 512 training examples. Arm A trained only at 5–6 digits and gained most at 7; Arm B trained a little at every length and gained most at 8–10. The answer key adds only 2.7 points on top of Arm B, mostly at 8–10 digits. Arm B pays for its lead in generation: it sampled 2.9× Arm A's tokens to find rare correct answers at long lengths (7% solve rate at 10 digits). One seed and one round: Arm A's edge should move up in later rounds, so the 10-round curves decide the result.
 
-## Ten rounds, all arms (seeds 0, 1, 2)
+## Ten rounds, all arms (seeds 0–9)
 
-Mean held-out accuracy (%) over three seeds:
+Mean held-out accuracy (%) over ten seeds:
 
 | Round | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Arm A · self-curriculum | 43.9 | 62.1 | 73.6 | 79.7 | 80.3 | 79.4 | 81.4 | 82.5 | 83.7 | 84.9 | **86.2** |
-| Arm B · fixed curriculum | 43.9 | **72.4** | 73.9 | 75.7 | 78.7 | 76.1 | 77.3 | 78.4 | 78.1 | 79.9 | 80.3 |
-| Arm B+key · reference | 43.9 | 73.2 | 72.1 | 68.8 | 74.4 | 77.6 | 74.5 | 78.9 | 78.2 | 78.5 | 80.4 |
+| Arm A · self-curriculum | 43.9 | 63.9 | 74.9 | 78.6 | 80.4 | 79.9 | 81.0 | 82.7 | 83.8 | 84.7 | **84.7** |
+| Arm B · fixed curriculum | 43.9 | 71.6 | 74.8 | 74.5 | 76.9 | 76.6 | 77.6 | 77.3 | 78.0 | 78.7 | 78.9 |
+| Arm B+key · reference | 43.9 | **73.8** | 74.1 | 74.0 | 75.9 | 77.1 | 78.3 | 79.7 | 80.7 | 80.7 | 81.4 |
 
-| | Final, seeds 0 / 1 / 2 | First round ≥ 80% | 10 digits, final | Tokens per run | Answer-key examples |
+| Seed | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Arm A | 84.2 | 87.3 | 87.1 | 77.7 | 85.3 | 86.5 | 85.9 | 84.4 | 83.4 | 85.6 |
+| Arm B | 83.8 | 80.1 | 76.9 | 81.3 | 78.6 | 81.1 | 67.7 | 80.7 | 79.0 | 79.9 |
+| Arm B+key | 83.6 | 78.0 | 79.5 | 83.2 | 81.4 | 76.0 | 84.6 | 84.0 | 80.6 | 82.8 |
+
+| | First round ≥ 80%, median (range) | 10 digits, final | Worst one-round drop, mean | Tokens per run | Answer-key examples |
 | --- | --- | --- | --- | --- | --- |
-| Arm A | 84.2 / 87.3 / 87.1 | 3 / 5 / 4 | 75.7% | 347k | 0 |
-| Arm B | 83.8 / 80.1 / 76.9 | 4 / 10 / 6 | 60.5% | 372k | 0 |
-| Arm B+key | 83.6 / 78.0 / 79.5 | 5 / never / 7 | 61.7% | 175k | 923–1,221 |
+| Arm A | 4 (3–9) | 73.4% | 2.2 pts | 356k | 0 |
+| Arm B | 7 (3–10, never on 1 seed) | 58.7% | 5.8 pts | 371k | 0 |
+| Arm B+key | 7 (5–10, never on 1 seed) | 64.8% | 5.5 pts | 176k | 880–1,221 |
 
-The self-curriculum finishes ahead on every seed, by 0.4, 7.2 and 10.1 points (mean 5.9; paired one-sided p ≈ 0.09 with three seeds, so a consistent direction rather than a settled result). Arm B is faster at first, leading after round 1 on every seed because it practises all lengths at once, but Arm A is ahead by round 3 and keeps climbing while Arm B levels off near 80%: it learns further rather than faster. The arms are level on 2–5-digit sums; Arm A's lead grows with length to 15 points at 10 digits. Arm A is also steadier between rounds and generates slightly fewer tokens. The answer key adds nothing over Arm B. Seed 0 alone showed a tie, so a single seed was not enough. Arm A's edge reaches the top of the 2–10-digit range by round 2–4, so a longer range is the natural next test.
+The self-curriculum finishes ahead of the fixed mix on 9 of 10 seeds, by 5.8 points on average (paired t-test across seeds: 95% interval 1.7 to 10.0, two-sided p = 0.011). The result holds up when averaging the last three rounds (5.9 points, p = 0.003) and without seed 6, where Arm B had an unusually bad last round (4.5 points, p = 0.010). The seven seeds added after the first three show a similar gap on their own (5.8 points, p = 0.055). Seed 3 goes the other way (−3.6 points), and single-seed gaps range up to +18.2, so one seed is not enough to compare curricula.
+
+Arm B leads after round 1 on 9 of 10 seeds, by 7.7 points on average, because it practises all lengths at once. Arm A is ahead by round 3 on 9 of 10 seeds and keeps climbing while Arm B stays near 77–79%. The arms are level on 2–5-digit sums, and Arm A's lead grows with length to 14.7 points at 10 digits. It is also steadier between rounds and generates slightly fewer tokens.
+
+The answer key shows no clear benefit: B+key's 2.5-point lead over Arm B is not distinguishable from zero (p = 0.21), and falls to 0.9 points without seed 6. Arm A finishes above B+key on 9 of 10 seeds by 3.4 points, which is borderline (p = 0.051).
+
+Arm A's edge reaches 10 digits by round 2–4 on every seed, so a longer range is the natural next test. These results don't yet show why Arm A wins: it may be the adaptation, or simply that it spends its budget on long sums.
+
+Three Arm A runs were resumed from a saved round after a power problem or hang (seed 0 after round 9, seed 4 after round 1, seed 7 after round 3), and Arm B on seed 2 was rerun from the start. Each round starts a fresh optimizer, so resuming loses no training state, though the sampling sequence changes. The plan was three seeds; seven more were added after the first three looked promising but inconclusive.
 
 Charts are in the Ten rounds tab of `reports/baseline.html`. `reports/status.html` shows runs live when the repo is served locally (`python3 -m http.server 8765`), and `scripts/watch.py` shows the same in a terminal.
 
@@ -142,6 +156,8 @@ Charts are in the Ten rounds tab of `reports/baseline.html`. `reports/status.htm
 - [x] Days 5–6: Arm B with a matched budget (plus Arm B+key reference)
 - [x] Day 7: 10 rounds of all three arms, plots
 - [x] Seeds 1 and 2
-- [ ] A longer difficulty range (e.g. 2–20 digits) and more seeds
+- [x] Seeds 3–9, with a watchdog that restarts hung runs (`scripts/run_queue.py`)
+- [ ] A longer difficulty range (e.g. 2–20 digits)
+- [ ] Test why Arm A wins: compare it with a fixed curriculum on long sums only
 - [ ] Steadier training: keep optimizer state between rounds or lower the learning rate
 - [ ] v2: the model writes its own problems, not only picks the difficulty
