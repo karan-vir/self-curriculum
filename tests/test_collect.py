@@ -57,3 +57,13 @@ def test_shortfall_when_model_never_right():
     assert col.examples == []
     assert col.shortfall == 5
     assert col.stats[9].problems == 24
+
+
+def test_keeps_drawing_past_the_default_cap_when_allowed():
+    # one problem in ten is solved, so 100 examples need far more than one batch
+    def rare(problems):
+        return [[str(p.answer) if p.a % 10 == 0 else "0"] for p in problems]
+    col = collect(rare, {8: 100}, random.Random(0), exclude=set(), batch_size=16, max_batches=200)
+    assert col.shortfall == 0
+    assert col.stats[8].problems > 100
+    assert all(int(c) == p.answer for p, c in col.examples)

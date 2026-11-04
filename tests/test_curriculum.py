@@ -2,6 +2,7 @@ import random
 
 import pytest
 
+from selfcurr.config import Config
 from selfcurr.curriculum import allocate, fixed_curriculum_plan, select_edge, self_curriculum_plan
 
 
@@ -34,6 +35,13 @@ def test_allocate_sums_to_n_and_is_even(n):
     counts = allocate([2, 3, 4, 5, 6, 7, 8, 9, 10], n, random.Random(0))
     assert sum(counts.values()) == n
     assert max(counts.values()) - min(counts.values()) <= 1
+
+
+def test_hard_only_plan_is_even_over_long_sums():
+    plan = fixed_curriculum_plan(Config().hard_digits, 512, random.Random(0))
+    assert sorted(plan) == [8, 9, 10]
+    assert sum(plan.values()) == 512
+    assert max(plan.values()) - min(plan.values()) == 1
 
 
 def test_both_arms_get_same_budget():

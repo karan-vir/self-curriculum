@@ -1,4 +1,4 @@
-<title>Qwen 0.5B Addition Baseline</title>
+<title>Self-Curriculum Experiment</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,6 +17,7 @@
   --s1: #2a78d6;
   --s2: #eb6834;
   --s3: #1baf7a;
+  --s4: #eda100;
   --seq: #1c5cab;
   --on-seq: #ffffff;
   --bad: #e34948;
@@ -31,14 +32,14 @@
   :root:not([data-theme="light"]) {
     --bg: #121418; --surface: #1a1a19; --ink: #eeeee9; --ink-2: #b9bcc2; --ink-3: #8a8f98;
     --rule: #33363d; --rule-soft: #26282d; --band: #1d2a3b;
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --seq: #5598e7; --on-seq: #0d1420;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --seq: #5598e7; --on-seq: #0d1420;
     --bad: #e66767; --bad-bg: #4a2224; --ok-ink: #eeeee9; --good: #4cb85c; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #121418; --surface: #1a1a19; --ink: #eeeee9; --ink-2: #b9bcc2; --ink-3: #8a8f98;
   --rule: #33363d; --rule-soft: #26282d; --band: #1d2a3b;
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --seq: #5598e7; --on-seq: #0d1420;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --seq: #5598e7; --on-seq: #0d1420;
   --bad: #e66767; --bad-bg: #4a2224; --ok-ink: #eeeee9; --good: #4cb85c; color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -66,12 +67,13 @@ code { font: 0.86em var(--mono); background: var(--rule-soft); padding: 1px 5px;
 
 header { display: grid; gap: 20px; border-bottom: 1px solid var(--rule); padding-bottom: 32px; }
 .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule); }
+.facts.facts-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .fact { padding: 16px 16px 4px 0; display: grid; gap: 4px; min-width: 0; }
 .fact + .fact { padding-left: 16px; border-left: 1px solid var(--rule); }
 .fact b { font: 600 28px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
 .fact span { font: 13px/1.35 var(--display); color: var(--ink-2); }
 @media (max-width: 640px) {
-  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .facts, .facts.facts-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fact:nth-child(3) { padding-left: 0; border-left: 0; }
 }
 
@@ -183,16 +185,16 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
 
 <div class="page">
   <header>
-    <div class="eyebrow">Self-curriculum experiment · Baseline report</div>
-    <h1>How well does Qwen 0.5B add before any training?</h1>
-    <p class="lede">The untrained model gets <b class="num">44.0%</b> of held-out additions right. Accuracy falls smoothly from 91.5% on 2-digit sums to 3.0% on 10-digit sums, which puts its starting edge at <b>5–6 digits</b>, the band Arm A will train on in round 1.</p>
+    <div class="eyebrow">Self-curriculum experiment</div>
+    <h1>Does a small model learn more by choosing its own training problems?</h1>
+    <p class="lede"><b>Better than a uniform mix, but adapting doesn't seem to be why.</b> After 10 rounds, the self-curriculum (84.7%) beats a fixed mix of all lengths (78.9%). A fixed mix of only 8–10-digit sums, with no adaptation at all, does at least as well (87.1%). Spending the budget on long sums looks like what matters.</p>
     <div class="facts">
-      <div class="fact"><b>44.0%</b><span>overall accuracy, 792 of 1,800</span></div>
-      <div class="fact"><b>5–6</b><span>digits in the 30–70% edge band</span></div>
-      <div class="fact"><b>1,008</b><span>wrong answers, all parsed as numbers</span></div>
-      <div class="fact"><b>30 s</b><span>full evaluation on an M4 Pro (MPS)</span></div>
+      <div class="fact"><b>43.9%</b><span>untrained model, every arm's starting point</span></div>
+      <div class="fact"><b>84.7%</b><span>Arm A, self-curriculum, after 10 rounds</span></div>
+      <div class="fact"><b>78.9%</b><span>Arm B, fixed mix of 2–10 digits</span></div>
+      <div class="fact"><b>87.1%</b><span>Arm C, fixed mix of 8–10 digits</span></div>
     </div>
-    <p class="meta">Qwen/Qwen2.5-0.5B-Instruct · greedy decoding · 200 problems per difficulty · run 1 Nov 2026 · <a href="https://github.com/karan-vir/self-curriculum">karan-vir/self-curriculum</a></p>
+    <p class="meta">Qwen/Qwen2.5-0.5B-Instruct · 10 rounds × 10 seeds · 512 training examples per round · 1,800 held-out problems · baseline run 1 Nov 2026, last arm finished 4 Nov 2026 · <a href="https://github.com/karan-vir/self-curriculum">karan-vir/self-curriculum</a></p>
   </header>
 
   <nav class="tabs" role="tablist" aria-label="Report views">
@@ -211,11 +213,12 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     </div>
     <dl class="defs" style="margin-top:20px">
       <dt>Question</dt><dd>Given 512 training examples per round, does training at the model's own edge (Arm A) reach higher held-out accuracy than a uniform mix of difficulties (Arm B)?</dd>
+      <dt>Follow-up</dt><dd>Added after the ten-seed results: does Arm A win by adapting, or simply by spending its budget on long sums? Arm C, a fixed mix of 8–10 digits, tests this.</dd>
       <dt>Testbed</dt><dd>Adding two N-digit integers, N from 2 to 10, on Qwen2.5-0.5B-Instruct with LoRA. Difficulty can be set exactly and every answer checked exactly, so no labels or judge model are needed.</dd>
       <dt>Measured</dt><dd>Learning efficiency: held-out accuracy per round, overall and per length, and the longest length the model solves at least half the time.</dd>
       <dt>Not measured</dt><dd>General reasoning or transfer to other tasks. In this first version the model chooses the difficulty, not the problems themselves.</dd>
       <dt>Success</dt><dd>Arm A sits above Arm B at matched rounds across seeds, or reaches longer sums. The plan was 3 seeds; the run grew to 10.</dd>
-      <dt>This report</dt><dd>The Report tab covers the untrained baseline, the starting point every arm is compared against. The <a href="#results" data-goto="results">Ten rounds</a> tab has the full run: all three arms, 10 rounds, seeds 0–9.</dd>
+      <dt>This report</dt><dd>The Report tab covers the untrained baseline, the starting point every arm is compared against. The <a href="#results" data-goto="results">Ten rounds</a> tab has the full run: all four arms, 10 rounds, seeds 0–9.</dd>
     </dl>
   </section>
 
@@ -223,7 +226,8 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <h2><span class="sec">2</span>Why this baseline matters</h2>
     <div class="stack">
       <p>The experiment asks whether a small model learns faster when it picks its own training problems at the edge of its ability than when it trains on a fixed mix, given the same training budget. Before either arm runs, we need to know where the edge is, how sharp it is, and what kind of mistakes the model makes, because Arm A trains only on the model's own correct answers at that edge. Section 3 sets out the design, section 4 the data and section 5 explains the edge.</p>
-      <p>This report covers the untrained model only. No fine-tuning has happened yet.</p>
+      <p>The untrained model gets <b class="num">44.0%</b> of held-out additions right (792 of 1,800). Accuracy falls smoothly from 91.5% on 2-digit sums to 3.0% on 10-digit sums, which puts its starting edge at <b>5–6 digits</b>. All 1,008 wrong answers parsed as numbers. The full evaluation takes 30 s on an M4 Pro. In the training precision the same model scores 43.9%, which is the round 0 figure used for every arm.</p>
+      <p>This tab covers the untrained model and the design. The trained results are in the <a href="#results" data-goto="results">Ten rounds</a> tab.</p>
     </div>
   </section>
 
@@ -232,7 +236,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <div class="prose stack">
       <h2><span class="sec">3</span>Experiment design</h2>
       <p><b>Hypothesis:</b> for the same number of training examples, a model that trains at its own edge reaches higher held-out accuracy, or solves longer sums, than one trained on a fixed mix of difficulties.</p>
-      <p>Both arms start from the same untrained model and run the same loop for 10 rounds. They differ only in <b>who picks the difficulty</b>. Arm A measures itself each round and trains where it's partly right. Arm B trains on a uniform mix of 2–10 digits every round, whatever the model can already do.</p>
+      <p>Every arm starts from the same untrained model and runs the same loop for 10 rounds. Arms A and B differ only in <b>who picks the difficulty</b>. Arm A measures itself each round and trains where it's partly right. Arm B trains on a uniform mix of 2–10 digits every round, whatever the model can already do. Arm C does the same as Arm B, but only on 8–10 digits.</p>
     </div>
 
     <figure>
@@ -253,19 +257,21 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
       </ol>
       <h3>Arm B: fixed curriculum (control)</h3>
       <p>Each round draws problems evenly across all nine lengths, with no probe and no edge. The model then tries each problem the same way as in Arm A, and the same 512-example budget, checker and LoRA settings apply. Arm B also trains only on the model's own correct answers, drawing more problems at a length until enough are solved.</p>
+      <h3>Arm C: hard-only</h3>
+      <p>Identical to Arm B, except that it draws evenly across 8, 9 and 10 digits only. There is no probe and no adaptation, and it trains only on the model's own correct answers. It was added after the ten-seed results, to test whether Arm A wins by adapting or simply by spending its budget on long sums. It may draw up to 200 batches of problems per length, against 50 for the other arms, so it can reach the budget while long sums are still rarely solved. It never needed more than 38, so the higher limit made no difference.</p>
       <h3>Arm B+key: reference</h3>
       <p>Identical to Arm B, except that a problem the model never solves is trained on the true answer. It isn't a control for Arm A, because it gets answers Arm A never sees. It shows how much the answer key adds on top of self-training.</p>
     </div>
 
     <div class="tbl-wrap">
       <table class="design-tbl">
-        <tr><th></th><th>Arm A · self-curriculum</th><th>Arm B · fixed curriculum</th><th>Arm B+key · reference</th></tr>
-        <tr><td>Who picks the difficulty</td><td>The model, from its own probe accuracy</td><td>Nobody: uniform over 2–10 digits</td><td>Same as Arm B</td></tr>
-        <tr><td>Training answers</td><td>Model's own, checker-verified</td><td>Model's own, checker-verified</td><td>Model's own; true answer if none correct</td></tr>
-        <tr><td>Examples per round</td><td>512</td><td>512</td><td>512</td></tr>
-        <tr><td>Rounds × seeds</td><td>10 × 3</td><td>10 × 3</td><td>10 × 3</td></tr>
-        <tr><td>Extra inference cost</td><td>Probe (576 problems) + rejected tries</td><td>Rejected tries only, many at long lengths</td><td>Rejected tries only</td></tr>
-        <tr><td>Evaluation</td><td>1,800 held-out, greedy, every round</td><td>Same</td><td>Same</td></tr>
+        <tr><th></th><th>Arm A · self-curriculum</th><th>Arm B · fixed curriculum</th><th>Arm B+key · reference</th><th>Arm C · hard-only</th></tr>
+        <tr><td>Who picks the difficulty</td><td>The model, from its own probe accuracy</td><td>Nobody: uniform over 2–10 digits</td><td>Same as Arm B</td><td>Nobody: uniform over 8–10 digits</td></tr>
+        <tr><td>Training answers</td><td>Model's own, checker-verified</td><td>Model's own, checker-verified</td><td>Model's own; true answer if none correct</td><td>Model's own, checker-verified</td></tr>
+        <tr><td>Examples per round</td><td>512</td><td>512</td><td>512</td><td>512</td></tr>
+        <tr><td>Rounds × seeds</td><td>10 × 10</td><td>10 × 10</td><td>10 × 10</td><td>10 × 10</td></tr>
+        <tr><td>Extra inference cost</td><td>Probe (576 problems) + rejected tries</td><td>Rejected tries only, many at long lengths</td><td>Rejected tries only</td><td>Rejected tries only, all at long lengths</td></tr>
+        <tr><td>Evaluation</td><td>1,800 held-out, greedy, every round</td><td>Same</td><td>Same</td><td>Same</td></tr>
       </table>
     </div>
 
@@ -274,14 +280,15 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
       <p class="num" style="font-size:14px;color:var(--ink-2)">Qwen2.5-0.5B-Instruct · LoRA rank 16, alpha 32, dropout 0.05 · learning rate 2e-4 · batch 16 · 1 epoch per round · sampling temperature 0.8, 4 tries per problem · seeds 0–9</p>
       <h3>Keeping the comparison fair</h3>
       <ul class="plain">
-        <li><b>Same training budget.</b> Both arms train on exactly 512 examples per round with identical settings.</li>
-        <li><b>Inference is reported, not matched.</b> Arm A spends extra generation on probing. Both arms log generated tokens so that cost is visible next to the result.</li>
+        <li><b>Same training budget.</b> Every arm trains on exactly 512 examples per round with identical settings.</li>
+        <li><b>Inference is reported, not matched.</b> Arm A spends extra generation on probing. Every arm logs generated tokens so that cost is visible next to the result.</li>
         <li><b>No test leakage.</b> Any training problem that appears in the held-out set is rejected.</li>
         <li><b>Ten seeds per arm.</b> Small LoRA runs vary between seeds, so curves show the mean and range. The first three seeds looked promising but inconclusive, so seven more were added.</li>
+        <li><b>Arm C came after the results.</b> Its 8–10-digit range was chosen knowing where Arm A's gain appeared, so it had an advantage Arm A didn't have.</li>
       </ul>
       <h3>How the result is read</h3>
       <ul class="plain">
-        <li><b>Main plot:</b> held-out accuracy against round for both arms, overall and per length.</li>
+        <li><b>Main plot:</b> held-out accuracy against round for every arm, overall and per length.</li>
         <li><b>Secondary:</b> the longest length with at least 50% accuracy, per round.</li>
         <li><b>Support for the hypothesis:</b> Arm A's curve sits above Arm B's at matched rounds across seeds, or reaches longer sums.</li>
       </ul>
@@ -299,7 +306,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
         <tr><th>Set</th><th>Size</th><th>How it's drawn</th><th>Used for</th><th>Trained on?</th></tr>
         <tr><td>Held-out test</td><td class="num">1,800<br>200 × 9 lengths</td><td>Once, with seed 1234, then frozen in <code>data/test_set.jsonl</code>. Identical for every round, arm and seed.</td><td>Scoring only: the baseline and every round's evaluation.</td><td>Never</td></tr>
         <tr><td>Probe</td><td class="num">576 per round<br>64 × 9 lengths</td><td>Fresh each round from the run's seed. Arm A only.</td><td>Measuring the current model to pick the edge.</td><td>No, scored only</td></tr>
-        <tr><td>Training</td><td class="num">512 kept per round</td><td>Fresh each round. Arm A draws at its edge lengths; Arm B and B+key draw evenly over 2–10 digits. Problems are drawn until 512 have a verified answer.</td><td>The LoRA update.</td><td>Yes, once each</td></tr>
+        <tr><td>Training</td><td class="num">512 kept per round</td><td>Fresh each round. Arm A draws at its edge lengths; Arm B and B+key draw evenly over 2–10 digits; Arm C draws evenly over 8–10. Problems are drawn until 512 have a verified answer.</td><td>The LoRA update.</td><td>Yes, once each</td></tr>
       </table>
     </div>
     <p class="meta">Arm A, round 1, seed 0: 1,088 training problems drawn at 5–6 digits, 4,352 tries sampled, 512 kept (256 per length), no shortfall.</p>
@@ -459,8 +466,8 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
   <div id="view-results" class="view" role="tabpanel" aria-labelledby="tab-results" hidden>
     <section>
       <div class="prose stack">
-        <h2>Ten rounds, three arms</h2>
-        <p class="lede" style="font-size:19px">Across ten seeds, <b>the self-curriculum finishes ahead</b>: Arm A averages 84.7% after 10 rounds against 78.9% for the fixed mix. It wins on 9 of 10 seeds, by 5.8 points on average (95% interval about 2 to 10 points, p = 0.01). The fixed mix is faster at first, and Arm A's gain is almost all on long sums.</p>
+        <h2>Ten rounds, four arms</h2>
+        <p class="lede" style="font-size:19px">Across ten seeds, Arm A beats the uniform mix, <b>but a fixed mix of long sums does at least as well</b>. Arm C averages 87.1% after 10 rounds, against 84.7% for Arm A and 78.9% for Arm B. It is ahead of Arm B on all 10 seeds (8.2 points, p &lt; 0.001). It is ahead of Arm A on 9 of 10 seeds, but that gap is borderline (2.4 points, p = 0.056) and nearly all from the last round.</p>
         <p class="meta" id="r-meta"></p>
       </div>
       <div class="controls">
@@ -468,13 +475,13 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
           <select id="r-seed"></select>
         </label>
       </div>
-      <div class="facts" id="r-facts"></div>
+      <div class="facts facts-5" id="r-facts"></div>
     </section>
 
     <section>
       <div class="prose stack">
         <h2><span class="sec">R1</span>Accuracy by round</h2>
-        <p>All three arms start from the same 43.9% (round 0, evaluated in the training precision). Arm B jumps further in round 1 (71.6% against Arm A's 63.9%, mean of ten seeds), because it practises every length at once while Arm A trains only at 5–7 digits. The means are level at round 2, and by round 3 Arm A is ahead on 9 of 10 seeds. It keeps climbing to 84.7%, while Arm B stays near 77–79% from round 6 on.</p>
+        <p>Every arm starts from the same 43.9% (round 0, evaluated in the training precision). After round 1, Arm C (74.3%) and Arm B (71.6%) are well ahead of Arm A (63.9%), which trains only at 5–7 digits in that round. Arm A then catches Arm C: from round 2 to round 9 the two are level (mean gap +0.2 points, p = 0.90). Arm C then gains 2.4 points in round 10 while Arm A stays at 84.7%. Arm B stays near 77–79% from round 6 on.</p>
       </div>
       <figure>
         <div class="ftitle">Held-out accuracy after each round</div>
@@ -489,6 +496,11 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
       <h3 id="r-by-seed-title" style="margin:20px 0 8px">Final accuracy by seed</h3>
       <div class="tbl-wrap">
         <table id="r-by-seed"></table>
+      </div>
+      <h3 style="margin:20px 0 8px">Paired comparison across seeds</h3>
+      <p class="fsub" style="margin:0 0 8px">Final held-out accuracy, compared seed by seed. Gap in points, with a 95% interval and a two-sided p-value from a paired t-test. A negative gap means the second arm is ahead. Not corrected for multiple comparisons.</p>
+      <div class="tbl-wrap">
+        <table id="r-cmp"></table>
       </div>
     </section>
 
@@ -507,7 +519,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <section>
       <div class="prose stack">
         <h2><span class="sec">R3</span>Final accuracy by length</h2>
-        <p>The arms are statistically level on 2–5-digit sums. Arm A's lead grows with length, from 5 points at 6 digits to 14.7 points at 10 digits (73.4% against 58.7%, mean of ten seeds). Paired across seeds, the gap is clear of zero at 7, 8, 9 and 10 digits, and borderline at 6 (p = 0.051). The interval at 10 digits is wide, 6 to 23 points, because seeds vary.</p>
+        <p>Arm C finishes highest at every length from 3 to 10 digits, including 3–7 digits, which it never trained on. Against Arm B its lead is clear from 6 to 10 digits (8.0 to 17.7 points, each p &lt; 0.005). Against Arm A, only the 8-digit gap (6.3 points, p &lt; 0.001) would survive a correction for testing nine lengths, and over the last three rounds even that shrinks to 2.1 points on the means (79.1% against 77.0%). Arm A's lead over Arm B grows with length, from 5 points at 6 digits to 14.7 at 10 digits, and it is level with Arm B on 2–5 digits.</p>
       </div>
       <figure>
         <div class="ftitle">Held-out accuracy by length after round 10</div>
@@ -521,7 +533,7 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <section>
       <div class="prose stack">
         <h2><span class="sec">R4</span>What each arm cost</h2>
-        <p>Training is matched at 512 examples per round. Inference isn't: Arm A pays for its probe, and the arms without an answer key pay for rejected tries on long sums. Arm A still generated slightly fewer tokens than Arm B.</p>
+        <p>Training is matched at 512 examples per round. Inference isn't: Arm A pays for its probe, and the arms without an answer key pay for rejected tries on long sums. Arm A generated slightly fewer tokens than Arm B. Arm C generated the most, 43% more than Arm A, and 42% of its tokens came in round 1. No arm fell short of the budget.</p>
       </div>
       <div class="tbl-wrap"><table id="r-cost"></table></div>
     </section>
@@ -529,25 +541,28 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     <section class="prose">
       <h2><span class="sec">R5</span>Insights</h2>
       <ol class="insights">
-        <li><h3>The self-curriculum wins, on 9 of 10 seeds.</h3><p>Arm A finishes ahead of Arm B by 5.8 points on average (paired t-test across seeds: 95% interval 1.7 to 10.0, two-sided p = 0.011). The result does not hinge on one number: averaging the last three rounds gives 5.9 points (p = 0.003), and leaving out seed 6, where Arm B had an unusually bad last round, gives 4.5 (p = 0.010). The seven seeds added after the first three give a similar gap on their own (5.8 points, p = 0.055), though that subset alone is not conclusive.</p></li>
-        <li><h3>Fixed mix is faster at the start; self-curriculum is better later.</h3><p>Arm B leads after round 1 on 9 of 10 seeds, by 7.7 points on average, because it trains on every length at once. Arm A is ahead by round 3 on 9 of 10 seeds and keeps improving while Arm B levels off. Arm A also reaches 80% sooner: median round 4, against round 7 for Arm B. The early lead lasts about two rounds. After that Arm A is both ahead and still improving.</p></li>
-        <li><h3>The gain is on long sums.</h3><p>The arms end level on 2–5 digits. Arm A's lead is clear at 7–10 digits, reaching 14.7 points at 10 digits, which is where it spent most of its training after round 3. It gave up nothing on short sums for this.</p></li>
-        <li><h3>One seed can say almost anything.</h3><p>The gap between Arm A and Arm B ranges from −3.6 points on seed 3 to +18.2 on seed 6, and seed 0 looked like a tie at +0.4. Arm A's loss on seed 3 is partly its own last round, which fell 4.5 points; over the last three rounds it still trails by 1.9. Single-seed comparisons of small LoRA runs are not reliable.</p></li>
-        <li><h3>The answer key shows no clear benefit.</h3><p>Arm B+key averaged 81.4% against Arm B's 78.9%, despite 880–1,221 answer-key examples per run. That gap of about 2.5 points is not distinguishable from zero (p = 0.21), and most of it comes from seed 6: without that seed it is 0.9 points. Ten seeds can't rule out a small benefit, so the earlier three-seed reading that the key adds nothing was too strong. Arm A also finishes above B+key on 9 of 10 seeds, by 3.4 points, though that is borderline (p = 0.051).</p></li>
-        <li><h3>Arm A was also steadier.</h3><p>Its worst one-round drop after round 1 averaged 2.2 points per seed, against 5.8 for Arm B and 5.5 for B+key, and it was smaller than Arm B's on 9 of 10 seeds (p = 0.005). This doesn't show why. Every arm still swings from round to round, so any single round's score is noisy.</p></li>
-        <li><h3>No extra compute.</h3><p>Arm A generated about 356k tokens per run on average, against 371k for Arm B. The probe costs about as much as the failed tries Arm B spends on long sums. B+key is cheapest at 176k, because every problem yields an example, so it never has to sample extra problems to replace failed ones.</p></li>
-        <li><h3>The difficulty range is now the limit.</h3><p>Arm A's edge reached 10 digits by round 2–4 on every seed, and in 16 of 100 rounds every length probed above 70%. A longer range would show whether its lead keeps growing.</p></li>
-        <li><h3>Interrupted runs.</h3><p>Three Arm A runs were resumed from a saved round after a power problem or hang (seed 0 after round 9, seed 4 after round 1, seed 7 after round 3), and one Arm B run (seed 2) was rerun from the start. Their sampling sequence changes on resume, but every round already starts a fresh optimizer, so no training state is lost. Their results sit inside the normal range.</p></li>
+        <li><h3>Spending on long sums appears to account for Arm A's win over Arm B.</h3><p>Arm C beats Arm B by 8.2 points (95% interval 5.1 to 11.3, p &lt; 0.001), on all 10 seeds, with no probe and no adaptation. That is more than Arm A's 5.8-point lead over Arm B. Arm A also ends up in nearly the same place: it trained only on 8–10 digits in 67 of 100 rounds, but only once across all seeds in rounds 1–2.</p></li>
+        <li><h3>Adapting showed no accuracy gain over Arm C.</h3><p>Arm C finishes 2.4 points ahead of Arm A (95% interval −0.1 to 4.8, p = 0.056), and ahead on 9 of 10 seeds. This doesn't show Arm C is truly better, because the gap rests on one round. It shrinks to 0.3 over the last three rounds (p = 0.78), and the two are level across rounds 2–9. Seed 3, where Arm A fell to 77.7%, is also a large part of it: without that seed the gap is 1.4 points (p = 0.022). What is clear is that Arm A doesn't finish above a fixed curriculum on long sums, which adapting would need to do to justify itself on accuracy.</p></li>
+        <li><h3>Adapting may still have value this run can't show.</h3><p>Someone had to choose 8–10 digits for Arm C, and that choice was made after seeing where Arm A gained. Arm A found those lengths with no prior knowledge. This run can't measure what that is worth, because a good fixed range exists here and is easy to guess. A longer range, where a fixed choice is harder to get right, would test it.</p></li>
+        <li><h3>Practising long sums also lifted shorter ones.</h3><p>Arm C never trains below 8 digits, yet it beats Arm B on 2–7-digit sums by 4.5 points on average (p = 0.005), with 8–9-point gaps at 6 and 7 digits. Practising every length gave Arm B no visible edge on the short ones. These results don't show why. One possibility is that long sums contain the same column steps as short ones, many times over.</p></li>
+        <li><h3>Arm A's slow start comes from where it starts, not from focusing.</h3><p>Arm B leads Arm A after round 1 on 9 of 10 seeds, by 7.7 points. An earlier version of this report put that down to Arm B practising every length at once. Arm C argues against that: it practises three lengths and leads Arm A by 10.4 points after round 1, on all 10 seeds, while roughly matching Arm B (+2.7 points, ahead on 5 of 10). The likelier cause is Arm A's first edge of 5–7 digits. Arm A does recover quickly, reaching 80% at a median of round 4, against 4.5 for Arm C and 7 for Arm B.</p></li>
+        <li><h3>Arm A still beats the uniform mix, and on long sums.</h3><p>Arm A finishes ahead of Arm B on 9 of 10 seeds, by 5.8 points (95% interval 1.7 to 10.0, p = 0.011). Averaging the last three rounds gives 5.9 points (p = 0.003), and leaving out seed 6, where Arm B had an unusually bad last round, gives 4.5 (p = 0.010). The seven seeds added after the first three give a similar gap on their own (5.8 points, p = 0.055), though that subset alone is not conclusive.</p></li>
+        <li><h3>One seed can say almost anything.</h3><p>The gap between Arm A and Arm B ranges from −3.6 points on seed 3 to +18.2 on seed 6. The gap between Arm A and Arm C ranges from −11.2 on seed 3 to +0.8 on seed 6. Single-seed comparisons of small LoRA runs are not reliable.</p></li>
+        <li><h3>The answer key shows no clear benefit.</h3><p>Arm B+key averaged 81.4% against Arm B's 78.9%, despite 880–1,221 answer-key examples per run. That gap of about 2.5 points is not distinguishable from zero (p = 0.21), and without seed 6 it is 0.9 points. Ten seeds can't rule out a small benefit. Choosing lengths mattered more: Arm C, with no answer key, beats B+key on all 10 seeds by 5.8 points (p = 0.003).</p></li>
+        <li><h3>Arm A may be steadier than Arm C, but it isn't clear.</h3><p>The worst one-round drop averaged 2.2 points per seed for Arm A, 3.8 for Arm C, 5.5 for B+key and 5.8 for Arm B. Arm A's drop was smaller than Arm B's on 9 of 10 seeds (p = 0.005), but the difference from Arm C is not distinguishable from zero (p = 0.19). Every arm still swings from round to round, so any single round's score is noisy.</p></li>
+        <li><h3>Arm C's extra cost is almost all in round 1.</h3><p>Arm C generated about 509k tokens per run, against 356k for Arm A, 371k for Arm B and 176k for B+key. Of Arm C's total, 213k came in round 1, when the untrained model solved only 15%, 12% and 8% of 8-, 9- and 10-digit problems. After that it used about 33k per round, close to Arm A. Runs took about 28 minutes, against 24 for Arm A. Arm C's 512 examples were reached every round, so the extra draws cost time but left no shortfall.</p></li>
+        <li><h3>The difficulty range is now the limit.</h3><p>Arm A's edge reached 10 digits by round 2–4 on every seed, and in 16 of 100 rounds every length probed above 70%. Every arm is limited by the 10-digit ceiling, which also makes Arm C's range easy to guess.</p></li>
+        <li><h3>Interrupted runs.</h3><p>Three Arm A runs were resumed from a saved round after a power problem or hang (seed 0 after round 9, seed 4 after round 1, seed 7 after round 3), and one Arm B run (seed 2) was rerun from the start. Their sampling sequence changes on resume, but every round already starts a fresh optimizer, so no training state is lost. Their results sit inside the normal range. All ten Arm C runs finished without a restart.</p></li>
       </ol>
     </section>
 
     <section class="prose">
       <h2><span class="sec">R6</span>Next steps</h2>
       <ul class="plain">
-        <li><b>Check the reasons for the gap,</b> for example by training Arm B only on long sums. That would test whether Arm A wins because it adapts or simply because it spends its budget on long sums.</li>
-        <li><b>Extend the task</b> to longer sums, for example 2–20 digits, so the edge keeps moving instead of falling back to the closest length.</li>
-        <li><b>Steady the training,</b> for example by keeping the optimizer state between rounds or lowering the learning rate, and check whether Arm A's advantage survives when Arm B is less jumpy.</li>
-        <li><b>Try a mixed curriculum</b> that keeps some easy problems alongside the edge, to see whether it keeps Arm B's fast start and Arm A's late gains.</li>
+        <li><b>Extend the task</b> to longer sums, for example 2–20 digits. This is now the most useful test. A fixed range is harder to choose there, and problems beyond the model's reach yield no correct answers, so a hard-only arm could stall where Arm A would not.</li>
+        <li><b>Run past round 10,</b> to see whether Arm C's final-round lead over Arm A lasts or was noise.</li>
+        <li><b>Give Arm A a better first round,</b> for example with a lower edge band, since round 1 is the one place it clearly trails Arm C.</li>
+        <li><b>Steady the training,</b> for example by keeping the optimizer state between rounds or lowering the learning rate, so that a single round's score means more.</li>
       </ul>
     </section>
   </div>
@@ -604,12 +619,13 @@ footer { border-top: 1px solid var(--rule); padding-top: 20px; }
     </section>
   </div>
 
-  <footer class="meta">Source: <code>results/baseline.json</code> (every completion), produced by <code>scripts/baseline.py</code>. Model weights from Hugging Face, Qwen/Qwen2.5-0.5B-Instruct.</footer>
+  <footer class="meta">Source: <code>results/baseline.json</code> (every completion), produced by <code>scripts/baseline.py</code>. Ten-round results from <code>scripts/run_arm.py</code>. Model weights from Hugging Face, Qwen/Qwen2.5-0.5B-Instruct.</footer>
 </div>
 
 <script>
 const D = /*DATA*/null;
 const R = /*RES*/null;
+const CMP = /*CMP*/null;
 const NS = "http://www.w3.org/2000/svg";
 const pct = x => (x * 100).toFixed(1) + "%";
 function el(tag, attrs = {}, parent) {
@@ -860,7 +876,7 @@ function bindHit(node, tip, host, html, anchor) {
 (function () {
   if (!R) return;
   const SEEDS = Object.keys(R);
-  const ARMS = [["a", "Arm A · self-curriculum", "var(--s1)"], ["b", "Arm B · fixed mix", "var(--s2)"], ["bkey", "Arm B+key · reference", "var(--s3)"]];
+  const ARMS = [["a", "Arm A · self-curriculum", "var(--s1)"], ["b", "Arm B · fixed mix", "var(--s2)"], ["bkey", "Arm B+key · reference", "var(--s3)"], ["c", "Arm C · hard-only", "var(--s4)"]];
   const LENS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
   const legend = ARMS.map(a => `<span><i style="background:${a[2]}"></i>${a[1]}</span>`).join("");
   const fmt = n => n.toLocaleString("en-US");
@@ -869,6 +885,9 @@ function bindHit(node, tip, host, html, anchor) {
   document.getElementById("r-count").textContent = SEEDS.length === 1 ? "seed " + SEEDS[0] : SEEDS.length + " seeds";
   document.getElementById("r-acc-legend").innerHTML = legend;
   document.getElementById("r-len-legend").innerHTML = legend + `<span><i style="background:var(--ink-3)"></i>Round 0, before training</span>`;
+
+  document.getElementById("r-cmp").innerHTML = "<tr><th>Comparison</th><th>Mean gap</th><th>95% interval</th><th>p</th><th>First arm ahead</th><th>Gap, last 3 rounds (p)</th></tr>" +
+    (CMP || []).map(c => { const sg = x => (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(1); return `<tr><td>${c.label}</td><td>${sg(c.mean)}</td><td>${sg(c.lo)} to ${sg(c.hi)}</td><td>${c.p < 0.001 ? "<0.001" : c.p.toFixed(3)}</td><td>${c.wins} of ${c.n} seeds</td><td>${sg(c.last3)} (${c.last3p < 0.001 ? "<0.001" : c.last3p.toFixed(3)})</td></tr>`; }).join("");
 
   const sel = document.getElementById("r-seed");
   sel.innerHTML = (SEEDS.length > 1 ? `<option value="all">All ${SEEDS.length} seeds (mean and range)</option>` : "") +
@@ -884,7 +903,7 @@ function bindHit(node, tip, host, html, anchor) {
         const xs = seeds.map(sd => R[sd][k][r]);
         const os = xs.map(x => x.o);
         const e = {}; LENS.forEach(d => { e[d] = avg(xs.map(x => x.e[d])); });
-        return { r, o: avg(os), lo: Math.min(...os), hi: Math.max(...os), e, tok: avg(xs.map(x => x.tok || 0)), fb: avg(xs.map(x => x.fb || 0)), sec: avg(xs.map(x => x.sec || 0)) };
+        return { r, o: avg(os), lo: Math.min(...os), hi: Math.max(...os), e, tok: avg(xs.map(x => x.tok || 0)), fb: avg(xs.map(x => x.fb || 0)), prob: avg(xs.map(x => x.prob || 0)), tries: avg(xs.map(x => x.tries || 0)), short: avg(xs.map(x => x.short || 0)), sec: avg(xs.map(x => x.sec || 0)) };
       });
     });
     return { seeds, V, many: seeds.length > 1 };
@@ -909,9 +928,9 @@ function bindHit(node, tip, host, html, anchor) {
       const host = document.getElementById("r-acc"); host.innerHTML = "";
       document.getElementById("r-acc-sub").textContent = many
         ? `Mean of ${n} seeds on all 1,800 held-out problems; shading spans the lowest to highest seed. The dashed line marks 80%.`
-        : `Seed ${seeds[0]}, all 1,800 held-out problems. The dashed line marks 80%. Hover a round for all three values.`;
+        : `Seed ${seeds[0]}, all 1,800 held-out problems. The dashed line marks 80%. Hover a round for every arm's value.`;
       const W = 860, H = 360, m = { l: 52, r: 76, t: 16, b: 46 }, lo = 0.4, hi = 0.9;
-      const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Held-out accuracy by round for three arms, ${label}` }, host);
+      const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Held-out accuracy by round for four arms, ${label}` }, host);
       const xs = r => m.l + 12 + r / 10 * (W - m.l - m.r - 24);
       const ys = p => m.t + (hi - Math.max(lo, p)) / (hi - lo) * (H - m.t - m.b);
       for (let v = lo; v <= hi + 1e-9; v += 0.1) {
@@ -958,10 +977,10 @@ function bindHit(node, tip, host, html, anchor) {
 
     /* every seed's final scores, whichever view is chosen */
     {
-      const gap = sd => (R[sd].a[10].o - R[sd].b[10].o) * 100;
+      const gapCell = (sd, x, y) => { const d = (R[sd][x][10].o - R[sd][y][10].o) * 100; return `<td>${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}</td>`; };
       document.getElementById("r-by-seed-title").hidden = document.getElementById("r-by-seed").hidden = SEEDS.length < 2;
-      document.getElementById("r-by-seed").innerHTML = "<tr><th>Seed</th>" + ARMS.map(a => `<th>${short(a[1])}</th>`).join("") + "<th>A − B, points</th></tr>" +
-        SEEDS.map(sd => `<tr><td>${sd}</td>${ARMS.map(([k]) => `<td>${pct(R[sd][k][10].o)}</td>`).join("")}<td>${gap(sd) >= 0 ? "+" : "−"}${Math.abs(gap(sd)).toFixed(1)}</td></tr>`).join("");
+      document.getElementById("r-by-seed").innerHTML = "<tr><th>Seed</th>" + ARMS.map(a => `<th>${short(a[1])}</th>`).join("") + "<th>A − B, points</th><th>A − C, points</th><th>B − C, points</th></tr>" +
+        SEEDS.map(sd => `<tr><td>${sd}</td>${ARMS.map(([k]) => `<td>${pct(R[sd][k][10].o)}</td>`).join("")}${gapCell(sd, "a", "b")}${gapCell(sd, "a", "c")}${gapCell(sd, "b", "c")}</tr>`).join("");
     }
 
     /* R2 Arm A edge path: always one seed */
@@ -996,7 +1015,7 @@ function bindHit(node, tip, host, html, anchor) {
       const host = document.getElementById("r-len"); host.innerHTML = "";
       document.getElementById("r-len-sub").textContent = `${many ? `Mean of ${n} seeds. ` : `Seed ${seeds[0]}. `}The grey dashed line is round 0, before training.`;
       const W = 860, H = 320, m = { l: 52, r: 20, t: 14, b: 46 };
-      const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Final accuracy by length for three arms, ${label}, with round 0 for comparison` }, host);
+      const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Final accuracy by length for four arms, ${label}, with round 0 for comparison` }, host);
       const xs = d => m.l + 15 + (d - 2) / 8 * (W - m.l - m.r - 30);
       const ys = p => m.t + (1 - p) * (H - m.t - m.b);
       for (let v = 0; v <= 1.0001; v += 0.25) {
@@ -1023,8 +1042,8 @@ function bindHit(node, tip, host, html, anchor) {
     /* R4 cost, per seed (averaged when several) */
     {
       const tot = (k, f) => V[k].reduce((t, x) => t + (x[f] || 0), 0);
-      document.getElementById("r-cost").innerHTML = `<tr><th>Arm</th><th>Examples trained</th><th>Tokens generated${many ? ", per seed" : ""}</th><th>Round 1 tokens</th><th>Answer-key examples</th><th>Wall time${many ? ", per seed" : ""}</th></tr>` +
-        ARMS.map(([k, nm]) => `<tr><td>${nm}</td><td>${fmt(512 * 10)}</td><td>${fmt(Math.round(tot(k, "tok")))}</td><td>${fmt(Math.round(V[k][1].tok))}</td><td>${fmt(Math.round(tot(k, "fb")))}</td><td>${Math.round(tot(k, "sec") / 60)} min</td></tr>`).join("");
+      document.getElementById("r-cost").innerHTML = `<tr><th>Arm</th><th>Examples trained</th><th>Tokens generated${many ? ", per seed" : ""}</th><th>Round 1 tokens</th><th>Problems drawn for training</th><th>Tries</th><th>Shortfall</th><th>Answer-key examples</th><th>Wall time${many ? ", per seed" : ""}</th></tr>` +
+        ARMS.map(([k, nm]) => `<tr><td>${nm}</td><td>${fmt(512 * 10)}</td><td>${fmt(Math.round(tot(k, "tok")))}</td><td>${fmt(Math.round(V[k][1].tok))}</td><td>${fmt(Math.round(tot(k, "prob")))}</td><td>${fmt(Math.round(tot(k, "tries")))}</td><td>${fmt(Math.round(tot(k, "short")))}</td><td>${fmt(Math.round(tot(k, "fb")))}</td><td>${Math.round(tot(k, "sec") / 60)} min</td></tr>`).join("");
     }
   }
 

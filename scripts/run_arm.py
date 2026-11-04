@@ -5,12 +5,14 @@ Arm B (fixed curriculum): uniform over all lengths -> sample -> keep correct -> 
 Arm B+key (reference): as Arm B, but a problem the model never solves is
 trained on the true answer. Not a control for A; it measures what the answer
 key is worth on top of self-training.
+Arm C (hard-only): as Arm B, but only over Config.hard_digits. Tests whether
+Arm A's lead comes from adapting or just from spending its budget on long sums.
 
 Everything after the plan is shared, with the same settings and budget.
 Round 0 is the held-out evaluation before any training, run in the same
 precision as training so every round is compared like for like.
 
-    uv run python scripts/run_arm.py --arm a|b|bkey --rounds 1 --seed 0
+    uv run python scripts/run_arm.py --arm a|b|bkey|c --rounds 1 --seed 0
 
 Writes runs/arm_<x>/seed<N>/log.jsonl (one line per round) and the LoRA
 adapter after each round.
@@ -69,7 +71,7 @@ def gpu_gb() -> float | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--arm", choices=["a", "b", "bkey"], required=True)
+    ap.add_argument("--arm", choices=["a", "b", "bkey", "c"], required=True)
     ap.add_argument("--rounds", type=int, default=None, help="default: Config.rounds")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=None)
@@ -125,7 +127,7 @@ def main() -> None:
             edge = select_edge(probe_acc, cfg.edge_low, cfg.edge_high)
             plan = self_curriculum_plan(probe_acc, cfg.examples_per_round, rng, cfg.edge_low, cfg.edge_high)
         else:
-            plan = fixed_curriculum_plan(cfg.difficulties, cfg.examples_per_round, rng)
+            plan = fixed_curriculum_plan(cfg.hard_digits if args.arm == "c" else cfg.difficulties, cfg.examples_per_round, rng)
         times["plan"] = round(time.time() - t, 1)
 
         t = time.time()
@@ -134,7 +136,8 @@ def main() -> None:
         )
         col = collect(
             sample_fn, plan, rng, exclude=test_keys,
-            batch_size=cfg.collect_batch, max_batches=cfg.collect_max_batches, fallback=args.arm == "bkey",
+            batch_size=cfg.collect_batch, fallback=args.arm == "bkey",
+            max_batches=cfg.hard_max_batches if args.arm == "c" else cfg.collect_max_batches,
         )
         times["collect"] = round(time.time() - t, 1)
         free_memory()

@@ -10,14 +10,14 @@
 :root {
   --bg: #f5f6f8; --surface: #fcfcfb; --ink: #15181d; --ink-2: #4f5561; --ink-3: #7b818c;
   --rule: #dcdfe5; --rule-soft: #e9ebef; --band: #e6eef9;
-  --a: #2a78d6; --b: #eb6834; --k: #1baf7a; --good: #008300; --warn: #b26b00;
+  --a: #2a78d6; --b: #eb6834; --k: #1baf7a; --c: #eda100; --good: #008300; --warn: #b26b00;
   --display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #121418; --surface: #1a1a19; --ink: #eeeee9; --ink-2: #b9bcc2; --ink-3: #8a8f98;
-    --rule: #33363d; --rule-soft: #26282d; --band: #1d2a3b; --a: #3987e5; --b: #d95926; --k: #199e70;
+    --rule: #33363d; --rule-soft: #26282d; --band: #1d2a3b; --a: #3987e5; --b: #d95926; --k: #199e70; --c: #c98500;
     --good: #4cb85c; --warn: #e0a030; color-scheme: dark; }
 }
 * { box-sizing: border-box; }
@@ -29,8 +29,9 @@ h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
 .meta { font: 12px/1.5 var(--mono); color: var(--ink-3); }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 760px) { .cards { grid-template-columns: 1fr; } }
+.cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 980px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
 .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
 .card .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .card .name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -112,7 +113,7 @@ td.loss { color: var(--warn); }
     <h2>Queue events</h2>
     <ul class="events" id="events"></ul>
   </div>
-  <p class="meta">Reads <code>runs/arm_&lt;a|b|bkey&gt;/seed&lt;N&gt;/log.jsonl</code> every 15 s. Opens on the seed that is running; pick another above.</p>
+  <p class="meta">Reads <code>runs/arm_&lt;a|b|bkey|c&gt;/seed&lt;N&gt;/log.jsonl</code> every 15 s. Opens on the seed that is running; pick another above.</p>
 </div>
 
 <script>
@@ -122,6 +123,7 @@ const ARMS = [
   { id: "a", name: "Arm A · self-curriculum", color: "var(--a)" },
   { id: "b", name: "Arm B · fixed curriculum", color: "var(--b)" },
   { id: "bkey", name: "Arm B+key · reference", color: "var(--k)" },
+  { id: "c", name: "Arm C · hard-only", color: "var(--c)" },
 ];
 const ROUNDS = 10;
 const NS = "http://www.w3.org/2000/svg";
@@ -191,8 +193,9 @@ async function refresh() {
   const doneRounds = rows => Math.max(0, (rows || []).length - 1);
   const seedState = sd => {
     const ds = ARMS.map(a => all[sd][a.id]);
-    if (ds.every(r => !r || !r.length)) return "waiting";
-    return ds.every(r => doneRounds(r) >= ROUNDS) ? "done" : "running";
+    if (ds.every(r => doneRounds(r) >= ROUNDS)) return "done";
+    if (sd !== SEEDS.find(x => ARMS.some(a => doneRounds(all[x][a.id]) < ROUNDS))) return "waiting";
+    return "running";
   };
   const running = SEEDS.find(sd => seedState(sd) === "running");
   const shown = SEED || running || [...SEEDS].reverse().find(sd => seedState(sd) !== "waiting") || "0";
@@ -257,7 +260,7 @@ async function refresh() {
       return `<td title="round 0: ${pct(b0)}">${Math.round(v * 100)}%<br><span style="color:var(--ink-3);font-size:11px">${up >= 0 ? "+" : ""}${Math.round(up * 100)}</span></td>`;
     }).join("")}</tr>` : `<tr><td>${a.name}</td><td colspan="10" style="text-align:left;color:var(--ink-3)">not started</td></tr>`).join("");
 
-  const evAll = (await readText("../runs/seeds3to9.out")).split("\n").filter(l => l.startsWith("=== "));
+  const evAll = ((await readText("../runs/seeds3to9.out")) + "\n" + (await readText("../runs/arm_c.out"))).split("\n").filter(l => l.startsWith("=== "));
   // a restart writes nothing until its first round, so time from the latest start too
   const lastStart = (() => {
     const l = [...evAll].reverse().find(x => / start/.test(x)); if (!l) return 0;
@@ -268,31 +271,32 @@ async function refresh() {
 
   // health: is the running arm still writing rounds at its usual pace?
   const health = document.getElementById("health");
-  const live = running && ARMS.find(a => { const r = all[running][a.id]; return r && r.length && doneRounds(r) < ROUNDS; });
+  const live = running && ARMS.find(a => doneRounds(all[running][a.id]) < ROUNDS);
   if (live) {
     const t = await lastWrite(`../runs/arm_${live.id}/seed${running}/log.jsonl`);
     const quiet = t ? (Date.now() - Math.max(t, lastStart)) / 1000 : 0, limit = Math.max(480, 2.5 * perRound[live.id]);
     const where = `seed ${running}, ${live.name}, round ${doneRounds(all[running][live.id]) + 1}`;
     health.className = "health " + (quiet > limit ? "warn" : "ok");
     health.innerHTML = quiet > limit
-      ? `<b>May be stalled.</b><span>No new round from ${where} for ${mins(quiet)} (a round usually takes ${mins(perRound[live.id])}). The watchdog restarts it after 15 min. Check the charger is plugged in.</span>`
+      ? `<b>May be stalled.</b><span>No new round from ${where} for ${mins(quiet)} (a round usually takes ${mins(perRound[live.id])}). The watchdog restarts it after 15–20 min. Check the charger is plugged in.</span>`
       : `<b>Running.</b><span>${where} · last progress ${mins(quiet)} ago</span>`;
   } else {
     health.className = "health"; health.innerHTML = `<b>${running ? "Between runs" : "Idle"}.</b><span>No arm is writing rounds right now.</span>`;
   }
 
-  // finals for every seed where all three arms finished
-  const fin = SEEDS.filter(sd => seedState(sd) === "done").map(sd => ({ sd, v: ARMS.map(a => all[sd][a.id].slice(-1)[0].eval_overall) }));
+  // finals per seed; each mean uses the seeds that arm has finished
+  const finalOf = (sd, id) => { const r = all[sd][id]; return r && doneRounds(r) >= ROUNDS ? r[r.length - 1].eval_overall : null; };
+  const fin = SEEDS.filter(sd => ARMS.some(a => finalOf(sd, a.id) !== null));
   const finals = document.getElementById("finals");
   if (fin.length) {
-    const mean = i => fin.reduce((t, f) => t + f.v[i], 0) / fin.length;
-    const gap = v => { const d = (v[0] - v[1]) * 100; return `<td class="${d > 0 ? "win" : d < 0 ? "loss" : ""}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</td>`; };
-    const ahead = fin.filter(f => f.v[0] > f.v[1]).length;
-    finals.innerHTML = `<tr><th>Seed</th>${ARMS.map(a => `<th>${a.name.split(" · ")[0]}</th>`).join("")}<th>A − B (pts)</th></tr>` +
-      fin.map(f => `<tr><td>Seed ${f.sd}</td>${f.v.map(x => `<td>${pct(x)}</td>`).join("")}${gap(f.v)}</tr>`).join("") +
-      `<tr><td><b>Mean of ${fin.length}</b></td>${ARMS.map((a, i) => `<td><b>${pct(mean(i))}</b></td>`).join("")}${gap([mean(0), mean(1)])}</tr>` +
-      `<tr><td colspan="5" style="text-align:left;color:var(--ink-3);font-family:var(--display)">A ahead of B on ${ahead} of ${fin.length} seeds</td></tr>`;
-  } else finals.innerHTML = `<tr><td class="empty">Appears when a seed finishes all three arms.</td></tr>`;
+    const cell = x => x === null ? "<td>–</td>" : `<td>${pct(x)}</td>`;
+    const gapCell = (x, y) => { if (x === null || y === null) return "<td>–</td>"; const d = (x - y) * 100; return `<td class="${d > 0 ? "win" : d < 0 ? "loss" : ""}">${d >= 0 ? "+" : ""}${d.toFixed(1)}</td>`; };
+    const mean = id => { const v = fin.map(sd => finalOf(sd, id)).filter(x => x !== null); return v.length ? v.reduce((t, x) => t + x, 0) / v.length : null; };
+    const pairMean = (x, y) => { const v = fin.filter(sd => finalOf(sd, x) !== null && finalOf(sd, y) !== null).map(sd => finalOf(sd, x) - finalOf(sd, y)); return v.length ? [v.reduce((t, d) => t + d, 0) / v.length, 0] : [null, null]; };
+    finals.innerHTML = `<tr><th>Seed</th>${ARMS.map(a => `<th>${a.name.split(" · ")[0]}</th>`).join("")}<th>A − B (pts)</th><th>A − C (pts)</th></tr>` +
+      fin.map(sd => `<tr><td>Seed ${sd}</td>${ARMS.map(a => cell(finalOf(sd, a.id))).join("")}${gapCell(finalOf(sd, "a"), finalOf(sd, "b"))}${gapCell(finalOf(sd, "a"), finalOf(sd, "c"))}</tr>`).join("") +
+      `<tr><td><b>Mean</b></td>${ARMS.map(a => { const m = mean(a.id); return `<td>${m === null ? "–" : `<b>${pct(m)}</b>`}</td>`; }).join("")}${gapCell(...pairMean("a", "b"))}${gapCell(...pairMean("a", "c"))}</tr>`;
+  } else finals.innerHTML = `<tr><td class="empty">Appears when an arm finishes a seed.</td></tr>`;
 
   // watchdog queue output: start, done, stalls, pauses, restarts
   const ev = evAll.slice(-12).reverse();

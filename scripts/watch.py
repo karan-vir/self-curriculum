@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ARMS = [("a", "A  self-curriculum"), ("b", "B  fixed"), ("bkey", "B+key reference")]
+ARMS = [("a", "A  self-curriculum"), ("b", "B  fixed"), ("bkey", "B+key reference"), ("c", "C  hard-only")]
 
 
 def swap() -> str:

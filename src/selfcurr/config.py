@@ -32,6 +32,10 @@ class Config:
     collect_batch: int = 64
     collect_max_batches: int = 50
 
+    # Arm C (long sums are rarely solved early on, so it draws for longer before giving up)
+    hard_digits: list[int] = field(default_factory=lambda: [8, 9, 10])
+    hard_max_batches: int = 200
+
     # LoRA
     lora_r: int = 16
     lora_alpha: int = 32
