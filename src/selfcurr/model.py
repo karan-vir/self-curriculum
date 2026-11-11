@@ -52,10 +52,14 @@ def generate(
     temperature: float = 0.0,
     num_samples: int = 1,
     usage: dict | None = None,
+    token_counts: list[int] | None = None,
 ) -> list[list[str]]:
     """Completions per problem: `num_samples` each, greedy when temperature is 0.
 
     If `usage` is given, its "generated_tokens" count is increased in place.
+    If `token_counts` is given, it is extended with one count per problem (all
+    its tries together), counted the same way as `usage`: every generated token
+    except padding, so the end-of-turn token is included.
     """
     out: list[list[str]] = []
     for i in range(0, len(problems), batch_size):
@@ -69,16 +73,18 @@ def generate(
         gen = model.generate(**enc, **kwargs)[:, enc["input_ids"].shape[1] :]
         if usage is not None:
             usage["generated_tokens"] = usage.get("generated_tokens", 0) + int((gen != tok.pad_token_id).sum())
+        if token_counts is not None:
+            token_counts.extend((gen != tok.pad_token_id).reshape(len(batch), num_samples, -1).sum(dim=(1, 2)).tolist())
         texts = tok.batch_decode(gen, skip_special_tokens=True)
         out.extend(texts[j : j + num_samples] for j in range(0, len(texts), num_samples))
     return out
 
 
 def evaluate(
-    model, tok, problems: Sequence[Problem], batch_size: int = 64, usage: dict | None = None
+    model, tok, problems: Sequence[Problem], batch_size: int = 64, usage: dict | None = None, max_new_tokens: int = 16
 ) -> tuple[dict[int, float], list[dict]]:
     """Greedy accuracy per difficulty, plus one record per problem."""
-    completions = generate(model, tok, problems, batch_size=batch_size, usage=usage)
+    completions = generate(model, tok, problems, batch_size=batch_size, usage=usage, max_new_tokens=max_new_tokens)
     correct: dict[int, list[bool]] = defaultdict(list)
     records = []
     for p, (c,) in zip(problems, completions):

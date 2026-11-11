@@ -1,0 +1,16 @@
+W1105 06:53:46.350000 39369 torch/distributed/elastic/multiprocessing/redirects.py:35] NOTE: Redirects are currently not supported in MacOs.
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Loading weights:   0%|          | 1/290 [00:00<01:37,  2.97it/s]Loading weights: 100%|██████████| 290/290 [00:00<00:00, 785.88it/s]
+<repo>/.venv/lib/python3.12/site-packages/peft/utils/save_and_load.py:313: UserWarning: Could not find a config file in Qwen/Qwen2.5-0.5B-Instruct - will assume that the vocabulary was not modified.
+  warnings.warn(
+arm C · seed 0 · 10 rounds · device mps · out runs/budget_pilot/b213093/arm_c/seed0 · token budget 213093
+round 1 · plan {8: 170, 9: 171, 10: 171} · tokens 213051/213093 (probe 0) · kept 510 · problems 4840 · stop budget · {'plan': 0.0, 'collect': 529.1, 'train': 30.8, 'eval': 39.6}
+round 2 · plan {8: 171, 9: 170, 10: 171} · tokens 35586/213093 (probe 0) · kept 512 · problems 835 · stop plan_full · {'plan': 0.0, 'collect': 89.6, 'train': 31.1, 'eval': 39.7}
+round 3 · plan {8: 171, 9: 170, 10: 171} · tokens 31802/213093 (probe 0) · kept 512 · problems 744 · stop plan_full · {'plan': 0.0, 'collect': 84.7, 'train': 31.1, 'eval': 40.0}
+round 4 · plan {8: 171, 9: 171, 10: 170} · tokens 26695/213093 (probe 0) · kept 512 · problems 626 · stop plan_full · {'plan': 0.0, 'collect': 71.1, 'train': 31.2, 'eval': 39.7}
+round 5 · plan {8: 171, 9: 171, 10: 170} · tokens 28208/213093 (probe 0) · kept 512 · problems 663 · stop plan_full · {'plan': 0.0, 'collect': 71.5, 'train': 31.2, 'eval': 39.5}
+round 6 · plan {8: 170, 9: 171, 10: 171} · tokens 27977/213093 (probe 0) · kept 512 · problems 660 · stop plan_full · {'plan': 0.0, 'collect': 70.2, 'train': 31.2, 'eval': 39.2}
+round 7 · plan {8: 170, 9: 171, 10: 171} · tokens 27977/213093 (probe 0) · kept 512 · problems 661 · stop plan_full · {'plan': 0.0, 'collect': 70.0, 'train': 31.2, 'eval': 39.1}
+round 8 · plan {8: 171, 9: 170, 10: 171} · tokens 26472/213093 (probe 0) · kept 512 · problems 623 · stop plan_full · {'plan': 0.0, 'collect': 63.8, 'train': 31.0, 'eval': 39.1}
+round 9 · plan {8: 171, 9: 171, 10: 170} · tokens 27864/213093 (probe 0) · kept 512 · problems 653 · stop plan_full · {'plan': 0.0, 'collect': 70.5, 'train': 30.9, 'eval': 39.1}
+round 10 · plan {8: 171, 9: 171, 10: 170} · tokens 28554/213093 (probe 0) · kept 512 · problems 672 · stop plan_full · {'plan': 0.0, 'collect': 69.7, 'train': 31.1, 'eval': 39.1}
+done in 1939s · log runs/budget_pilot/b213093/arm_c/seed0/log.jsonl

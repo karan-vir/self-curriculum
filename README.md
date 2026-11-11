@@ -1,161 +1,47 @@
 # Self-Curriculum Experiment
 
-Does a small language model learn faster when it **chooses its own training problems** at the edge of its ability than when it trains on a fixed curriculum, for the same training budget?
+Does a small language model learn more, measured as accuracy on held-out problems, when it **chooses its own training problems** at the edge of its ability than when it trains on a fixed curriculum, for the same number of training examples?
+
+> **Key result:** a fixed mix of only 8–10-digit sums, with no adaptation at all, did at least as well as the self-curriculum (87.1% against 84.7%; both beat the uniform mix at 78.9%). Counting the budget in training examples, spending it on long sums looks like what mattered; this run gives no evidence that adapting adds anything on top.
+>
+> Caveats: Arm C's range was chosen after seeing the results, and long sums give each example more answer tokens to learn from. Counted in generated tokens instead of examples, the self-curriculum comes out ahead (+3.8 points, an exploratory, after-the-fact comparison).
+
+The full write-up, with charts, is [`reports/baseline.html`](reports/baseline.html) (open it in a browser; the "Ten rounds" tab has the trained results).
+
+## Main findings
+
+Qwen2.5-0.5B-Instruct with LoRA, learning to add two N-digit integers (N = 2–10), 10 rounds of 512 self-generated, checker-verified examples, 10 seeds per arm. Gaps are paired across seeds (two-sided t-test, not corrected for multiple comparisons).
+
+| Finding | Number | Confidence |
+| --- | --- | --- |
+| The self-curriculum (A) beats a uniform 2–10-digit mix (B) | A − B +5.8 points at round 10 (95% interval +1.7 to +10.0, p = 0.011), A ahead on 9 of 10 seeds; +5.9 over the last three rounds (p = 0.003). A trails at round 1 (−7.7, behind on 9 of 10) and is level at round 2. Seeds 3–9 alone, added after an interim look: +5.8 (p = 0.055, 6 of 7) | Planned arms; seed count, test and final-round readout chosen after an interim look at 3 seeds; moderate |
+| A fixed mix of only 8–10-digit sums (C) beats the uniform mix by more | C − B +8.2 points (+5.1 to +11.3, p < 0.001), 10 of 10 seeds | High for the gap; Arm C was added after the results and its range chosen with hindsight |
+| Adapting showed no accuracy gain at equal training examples | A − C −2.4 points (−4.8 to +0.1, p = 0.056), A ahead on 1 of 10; level over rounds 2–9; −0.3 over the last three rounds (p = 0.78) | Inconclusive: unlike A − B, the gap does not hold over the last three rounds |
+| At equal generated tokens, A is ahead of C, because C spends 42% of its tokens in round 1 | +3.8 points at A's final token total (+0.4 to +7.1, p = 0.031), 8 of 10 seeds | Exploratory, after the fact; low |
+| Gains carry past the trained range | 11–13 digits: A 56.5%, B 43.9%, B+key 43.2%, C 61.1%, untrained 1.8% | Added after the results; A and C not distinguishable |
+
+In short: a fixed mix of long sums matches or beats the self-curriculum, so this run gives no evidence that adapting adds accuracy beyond spending the budget on the hardest problems the model can still sometimes solve. Final mean held-out accuracy: A 84.7%, B 78.9%, B+key 81.4%, C 87.1%, untrained 43.9%.
 
 ## Problem statement
 
-Most fine-tuning curricula are fixed ahead of time: a person decides the mix of easy and hard examples, and the model sees that mix whatever it already knows. That wastes budget. Problems the model already solves teach it little, and problems far beyond it give no correct solutions to learn from.
+Most fine-tuning curricula are fixed ahead of time: a person decides the mix of easy and hard examples, and the model sees that mix whatever it already knows. Problems the model already solves teach it little, and problems far beyond it give no correct solutions to learn from.
 
-A **self-curriculum** closes the loop. Each round, the model is tested across difficulty levels, and training focuses on the levels where it is partly right, roughly 30–70% accuracy (its *edge*). The training data is the model's own solutions at that edge, kept only when a programmatic checker confirms they are correct (rejection sampling, as in [STaR](https://arxiv.org/abs/2203.14465)).
+A **self-curriculum** closes the loop. Each round the model is tested across difficulty levels, and training focuses on the levels where it is partly right, 30–70% accuracy (its *edge*). The training data is the model's own solutions at that edge, kept only when a programmatic checker confirms them (rejection sampling, as in [STaR](https://arxiv.org/abs/2203.14465)).
 
-**Question:** for the same number of training examples, does the self-curriculum reach higher held-out accuracy, or solve longer problems, than a fixed curriculum?
-
-**What is measured:** *learning efficiency*, meaning held-out accuracy as a function of training examples seen. Reasoning ability in general is not measured.
-
-**Hypothesis:** Arm A (self-curriculum) climbs faster per round and reaches more digits than Arm B (fixed curriculum).
-
-**Result so far:** Arm A beats the uniform mix (84.7% against 78.9%, ten seeds), but a fixed mix of only 8–10-digit sums does at least as well (87.1%). Spending the budget on long sums, rather than adapting, looks like what matters on this task. See [Arm C](#arm-c-hard-only-seeds-09).
-
-## Setup
-
-| Part | Choice |
-| --- | --- |
-| Model | `Qwen/Qwen2.5-0.5B-Instruct`, LoRA fine-tuning |
-| Task | Addition of two N-digit integers, difficulty = N, from 2 to 10 |
-| Data | Generated in Python; answers checked exactly, so no labels needed |
-| Rounds | ~10 per arm |
-| Budget | Same number of training examples per round in every arm |
+**What is measured:** learning efficiency, meaning held-out accuracy as a function of training examples seen. General reasoning is not measured.
 
 ## The arms
 
-**Arm A: self-curriculum.** Each round:
+| Arm | Who picks the difficulty | Training answers | Status |
+| --- | --- | --- | --- |
+| **A, self-curriculum** | The model: each round, a greedy probe of 64 fresh problems per length (2–10), then train on lengths with 30–70% probe accuracy (or the one closest to 50% if none) | Model's own, checker-verified | Planned (3 seeds) |
+| **B, fixed curriculum** | Nobody: uniform over 2–10 digits | Model's own, checker-verified | Planned (control) |
+| **B+key, reference** | As B | Model's own; the true answer when no try is right | Reference, not a control; split off from B before any B result |
+| **C, hard-only** | Nobody: uniform over 8–10 digits | Model's own, checker-verified | Added after the ten-seed A vs B result |
 
-1. Evaluate the model on 64 fresh probe problems at every difficulty.
-2. Pick the edge: difficulties with accuracy in [0.3, 0.7]. If none qualify, take the one difficulty closest to 0.5.
-3. Sample problems at the edge and let the model attempt each one several times.
-4. Keep only answers the checker confirms are correct.
-5. LoRA fine-tune on the kept examples (exactly `examples_per_round` of them).
+Shared: Qwen/Qwen2.5-0.5B-Instruct, LoRA rank 16, alpha 32, dropout 0.05, learning rate 2e-4, batch 16, one epoch per round with a fresh AdamW optimizer, 512 examples per round (one per problem), 4 tries per problem at temperature 0.8, 10 rounds, seeds 0–9. Every round is scored greedily (16 new tokens) on a frozen held-out set of 1,800 problems (`data/test_set.jsonl`, 200 per length), which training never draws from. Arm C may draw up to 200 batches of 64 problems per length against 50 for the others; it never needed more than 38.
 
-**Arm B: fixed curriculum (control).** Same model, same `examples_per_round`, same training settings. Difficulties are drawn uniformly from 2–10 every round, with no adaptation. To isolate *who picks the difficulty*, Arm B also trains only on the model's own checker-verified solutions, drawing more problems at a length until enough are solved.
-
-**Arm B+key: reference, not a control.** As Arm B, but a problem the model never solves is trained on the true answer from the generator. It measures what the answer key adds on top of self-training, so it answers a different question from A vs B.
-
-**Arm C: hard-only.** As Arm B, but difficulties are drawn evenly from 8, 9 and 10 digits only. No probe, no adaptation, and no answer key. It was added after the ten-seed results to test whether Arm A wins by adapting or simply by spending its budget on long sums. Its 8–10-digit range was chosen knowing where Arm A's gain appeared. It may draw up to 200 batches of problems per length, against 50 for the other arms; it never needed more than 38.
-
-## Fairness rules
-
-- **Matched training budget:** all arms train on the same number of examples per round, with the same LoRA settings and steps.
-- **Inference is logged, not matched:** Arm A spends extra generation on probing and sampling. Every arm logs generated tokens so the cost difference is reported.
-- **No test leakage:** the held-out test set is generated once with a fixed seed. Training problems that appear in it are rejected.
-- **Seeds:** each arm runs with 10 seeds (planned as 3, extended after the first results); plots show the mean and range.
-
-## Measurement
-
-- Held-out test set: 200 problems per difficulty, evaluated with greedy decoding after every round.
-- Main plot: held-out accuracy against round (equivalently, training examples seen) for every arm, overall and per difficulty.
-- Secondary: the highest difficulty with at least 50% accuracy, per round.
-- Success signal: Arm A's curve sits above Arm B's at matched rounds, or it reaches more digits.
-
-## Baseline
-
-Untrained `Qwen2.5-0.5B-Instruct`, greedy decoding, 200 held-out problems per difficulty (`uv run python scripts/baseline.py`, 30 s on an M4 Pro via MPS):
-
-| Digits | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Accuracy | 91.5% | 87.5% | 74.0% | **58.5%** | **39.5%** | 23.5% | 8.5% | 10.0% | 3.0% |
-
-Overall 44.0%. The starting edge (30–70%) is **5–6 digits**. Every wrong completion parsed as a number, so the errors are arithmetic. Accuracy does not depend on how many carries a problem needs, only on its length. Short sums mostly fail with one column off by 1 (phantom carries outnumber dropped ones 107 to 68); long sums fail across every column, including the units. Full completions are in `results/baseline.json`; the full analysis is in `reports/baseline.html`.
-
-## Repository layout
-
-```
-src/selfcurr/
-  tasks.py        problem generator, prompt format, answer parser, checker
-  curriculum.py   edge selection (Arm A) and fixed mix (Arms B and C)
-  config.py       experiment settings
-  model.py        model loading, batched generation, evaluation
-  collect.py      draws problems per plan, keeps checker-verified answers
-  train.py        LoRA setup and one training round (loss on the answer only)
-scripts/
-  make_test_set.py   writes the frozen held-out set to data/test_set.jsonl
-  baseline.py        untrained-model accuracy per difficulty
-  run_arm.py         round loop for any arm (--arm a|b|bkey|c)
-  run_queue.py       runs seeds and arms in turn, restarting hung runs
-  watch.py           terminal view of running arms
-results/          committed experiment results
-tests/            unit tests for the generator, checker and curriculum
-```
-
-## Local setup
-
-Requires [uv](https://docs.astral.sh/uv/). Runs on CPU, Apple Silicon (MPS) or CUDA.
-
-```bash
-uv sync                          # core + dev tools
-uv sync --extra train            # adds torch, transformers, peft
-uv run pytest                    # tests
-uv run python scripts/make_test_set.py
-uv run python scripts/baseline.py
-uv run python scripts/run_arm.py --arm a --rounds 1 --seed 0   # one Arm A round
-uv run python scripts/run_arm.py --arm b --rounds 1 --seed 0   # one Arm B round
-uv run python scripts/run_arm.py --arm bkey --rounds 1 --seed 0   # one Arm B+key round
-uv run python scripts/run_arm.py --arm c --rounds 1 --seed 0   # one Arm C round
-```
-
-`run_arm.py` writes `runs/arm_<a|b|bkey|c>/seed<N>/log.jsonl` (plan, probe accuracy and edge for Arm A, collection stats, fallback count, generated tokens, losses and held-out accuracy per round) and a LoRA adapter per round. Training runs in float32 on MPS; round 0 re-evaluates the untrained model in the same precision.
-
-## First round, all arms (seed 0)
-
-| | Overall | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Round 0 (all arms) | 43.9% | 92% | 88% | 74% | 58% | 40% | 24% | 8% | 10% | 3% |
-| Arm A · self-curriculum | 58.9% | 94% | 89% | 80% | 74% | 64% | 58% | 24% | 30% | 16% |
-| Arm B · fixed curriculum | **67.6%** | 91% | 86% | 84% | 78% | 69% | 68% | 50% | 44% | 38% |
-| Arm B+key · reference | 70.3% | 93% | 86% | 82% | 70% | 72% | 66% | 61% | 60% | 43% |
-
-| | Problems drawn | Answer-key examples | Generated tokens | Collect time |
-| --- | --- | --- | --- | --- |
-| Arm A | 1,088 | 0 | 35,897 | 77 s |
-| Arm B | 2,688 | 0 | 104,535 | 211 s |
-| Arm B+key | 576 | 258 | 17,739 | 42 s |
-
-After one round, the fixed curriculum beats the self-curriculum by 8.7 points at the same 512 training examples. Arm A trained only at 5–6 digits and gained most at 7; Arm B trained a little at every length and gained most at 8–10. The answer key adds only 2.7 points on top of Arm B, mostly at 8–10 digits. Arm B pays for its lead in generation: it sampled 2.9× Arm A's tokens to find rare correct answers at long lengths (7% solve rate at 10 digits). One seed and one round: Arm A's edge should move up in later rounds, so the 10-round curves decide the result.
-
-## Ten rounds, all arms (seeds 0–9)
-
-Mean held-out accuracy (%) over ten seeds:
-
-| Round | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Arm A · self-curriculum | 43.9 | 63.9 | 74.9 | 78.6 | 80.4 | 79.9 | 81.0 | 82.7 | 83.8 | 84.7 | **84.7** |
-| Arm B · fixed curriculum | 43.9 | 71.6 | 74.8 | 74.5 | 76.9 | 76.6 | 77.6 | 77.3 | 78.0 | 78.7 | 78.9 |
-| Arm B+key · reference | 43.9 | **73.8** | 74.1 | 74.0 | 75.9 | 77.1 | 78.3 | 79.7 | 80.7 | 80.7 | 81.4 |
-
-| Seed | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Arm A | 84.2 | 87.3 | 87.1 | 77.7 | 85.3 | 86.5 | 85.9 | 84.4 | 83.4 | 85.6 |
-| Arm B | 83.8 | 80.1 | 76.9 | 81.3 | 78.6 | 81.1 | 67.7 | 80.7 | 79.0 | 79.9 |
-| Arm B+key | 83.6 | 78.0 | 79.5 | 83.2 | 81.4 | 76.0 | 84.6 | 84.0 | 80.6 | 82.8 |
-
-| | First round ≥ 80%, median (range) | 10 digits, final | Worst one-round drop, mean | Tokens per run | Answer-key examples |
-| --- | --- | --- | --- | --- | --- |
-| Arm A | 4 (3–9) | 73.4% | 2.2 pts | 356k | 0 |
-| Arm B | 7 (3–10, never on 1 seed) | 58.7% | 5.8 pts | 371k | 0 |
-| Arm B+key | 7 (5–10, never on 1 seed) | 64.8% | 5.5 pts | 176k | 880–1,221 |
-
-The self-curriculum finishes ahead of the fixed mix on 9 of 10 seeds, by 5.8 points on average (paired t-test across seeds: 95% interval 1.7 to 10.0, two-sided p = 0.011). The result holds up when averaging the last three rounds (5.9 points, p = 0.003) and without seed 6, where Arm B had an unusually bad last round (4.5 points, p = 0.010). The seven seeds added after the first three show a similar gap on their own (5.8 points, p = 0.055). Seed 3 goes the other way (−3.6 points), and single-seed gaps range up to +18.2, so one seed is not enough to compare curricula.
-
-Arm B leads after round 1 on 9 of 10 seeds, by 7.7 points on average, because it practises all lengths at once. Arm A is ahead by round 3 on 9 of 10 seeds and keeps climbing while Arm B stays near 77–79%. The arms are level on 2–5-digit sums, and Arm A's lead grows with length to 14.7 points at 10 digits. It is also steadier between rounds and generates slightly fewer tokens.
-
-The answer key shows no clear benefit: B+key's 2.5-point lead over Arm B is not distinguishable from zero (p = 0.21), and falls to 0.9 points without seed 6. Arm A finishes above B+key on 9 of 10 seeds by 3.4 points, which is borderline (p = 0.051).
-
-Arm A's edge reaches 10 digits by round 2–4 on every seed, so a longer range is the natural next test.
-
-Three Arm A runs were resumed from a saved round after a power problem or hang (seed 0 after round 9, seed 4 after round 1, seed 7 after round 3), and Arm B on seed 2 was rerun from the start. Each round starts a fresh optimizer, so resuming loses no training state, though the sampling sequence changes. The plan was three seeds; seven more were added after the first three looked promising but inconclusive.
-
-## Arm C: hard-only (seeds 0–9)
-
-Same budget and settings as the other arms, training only on the model's own correct answers at 8, 9 and 10 digits. All ten runs finished without a restart, with no shortfall in any round.
+## Results
 
 Mean held-out accuracy (%) over ten seeds:
 
@@ -163,13 +49,10 @@ Mean held-out accuracy (%) over ten seeds:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Arm A · self-curriculum | 43.9 | 63.9 | 74.9 | 78.6 | 80.4 | 79.9 | 81.0 | 82.7 | 83.8 | 84.7 | 84.7 |
 | Arm B · fixed curriculum | 43.9 | 71.6 | 74.8 | 74.5 | 76.9 | 76.6 | 77.6 | 77.3 | 78.0 | 78.7 | 78.9 |
+| Arm B+key · reference | 43.9 | 73.8 | 74.1 | 74.0 | 75.9 | 77.1 | 78.3 | 79.7 | 80.7 | 80.7 | 81.4 |
 | Arm C · hard-only | 43.9 | 74.3 | 75.9 | 78.7 | 79.3 | 79.9 | 82.2 | 81.4 | 82.5 | 84.7 | **87.1** |
 
-| Seed | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Arm C | 84.3 | 88.8 | 87.6 | 88.9 | 86.2 | 90.3 | 85.1 | 85.3 | 86.6 | 87.9 |
-
-Paired across seeds, final round (t-test, two-sided, not corrected for multiple comparisons):
+Paired across seeds, final round:
 
 | Comparison | Mean gap (points) | 95% interval | p | Seeds first arm ahead | Gap, last 3 rounds (p) |
 | --- | --- | --- | --- | --- | --- |
@@ -183,33 +66,88 @@ Paired across seeds, final round (t-test, two-sided, not corrected for multiple 
 | Arm B | 97.2 | 94.6 | 89.2 | 82.8 | 75.4 | 78.0 | 67.5 | 66.8 | 58.7 |
 | Arm C | 97.0 | 95.8 | 92.9 | 88.3 | 83.5 | 86.8 | 83.5 | 80.0 | 76.3 |
 
-| Per run, mean | Tokens | Of which round 1 | Problems drawn | Tries | Shortfall | Wall time |
-| --- | --- | --- | --- | --- | --- | --- |
-| Arm A | 356k | 33k | 7,680 | 30,720 | 0 | 24 min |
-| Arm B | 371k | 96k | 10,778 | 43,110 | 0 | 26 min |
-| Arm C | 509k | 213k | 11,802 | 47,206 | 0 | 28 min |
+Cost per run, mean over seeds (tokens are generated for training-data collection, Arm A's probe included):
 
-**Spending on long sums appears to account for Arm A's win over Arm B.** Arm C beats Arm B on all 10 seeds by more than Arm A does, with no probe and no adaptation. Arm A ends up doing nearly the same thing: it trained only on 8–10 digits in 67 of 100 rounds.
+| Arm | Tokens | Round 1 | Per round after round 1 | Wall time (M4 Pro) |
+| --- | --- | --- | --- | --- |
+| A | 356k | 33k | 36k | 24 min |
+| B | 371k | 96k | 30k | 26 min |
+| B+key | 176k | 18k | 18k | 18 min |
+| C | 509k | 213k | 33k | 28 min |
 
-**Adapting showed no accuracy gain, but Arm C isn't shown to be better either.** Arm C finishes ahead of Arm A on 9 of 10 seeds, but the gap is borderline and rests on one round. From round 2 to round 9 the two are level (+0.2 points, p = 0.90), and the gap falls to 0.3 over the last three rounds. Seed 3, where Arm A fell to 77.7%, is a large part of it: without that seed the gap is 1.4 points (p = 0.022).
+What the results suggest, in more detail (each point is argued, with its caveats, in the report):
 
-**Adapting may still have value this run can't show.** Arm C's range was chosen after seeing where Arm A gained, and Arm A found those lengths with no prior knowledge. Here a good fixed range exists and is easy to guess. A longer difficulty range would test whether that still holds.
+- **Arm C, with no probe and no adaptation, beats B by more than A does**, so this run gives no evidence that adapting adds accuracy beyond choosing long sums. Arm A itself trained only on 8–10 digits in 67 of 100 rounds.
+- **A against C is close either way.** At equal examples C finishes 2.4 points ahead, a gap that rests on the last round (level over rounds 2–9, −0.3 over the last three rounds). At equal tokens A is ahead, because C pays for round 1 up front. Both comparisons are a few points and depend on how compute is counted; the token comparison was defined after the fact.
+- **Arm A's slow start is not explained by focusing on few lengths.** After round 1, C leads A by 10.4 points on all 10 seeds despite practising only three lengths, and A's round-1 score ranges from 55.9% to 71.6% across seeds. A's first edge of 5–7 digits is one possible cause, not tested here.
+- **Training only on long sums did not cost accuracy on shorter ones.** C never trains below 8 digits, yet finishes above B at 4–7 digits (3.7–8.8 points, each p < 0.05) and level at 2–3.
+- **The answer key shows no clear benefit:** B+key − B is +2.5 points (p = 0.21).
+- **The untrained model trips on columns that sum to 9** (exploratory): on 2–6 digits it gets 50.6% of problems with such a column (and no incoming carry) right, against 76.4% without, and its phantom carries concentrate where the column to the right sums to 7–9, most at 9.
 
-Arm C never trains below 8 digits, yet it beats Arm B on 2–7-digit sums by 4.5 points (p = 0.005). It also leads Arm A by 10.4 points after round 1 on all 10 seeds, which argues against the earlier reading that Arm B starts fast because it practises every length; Arm A's first edge of 5–7 digits is the likelier cause. Arm C's cost is its first round: 213k tokens while long sums are rarely solved (15%, 12% and 8% of 8-, 9- and 10-digit problems), then about 33k per round, close to Arm A.
+## What was planned and what was added
 
-Charts are in the Ten rounds tab of `reports/baseline.html`. `reports/status.html` shows runs live when the repo is served locally (`python3 -m http.server 8765`), and `scripts/watch.py` shows the same in a terminal.
+Arms A and B, the edge band, the held-out set and the per-round readout (mean and range; success if A's curve sits above B's at matched rounds) were fixed before any result, with 3 seeds. The final-round paired test over 10 seeds that the A − B result now rests on was chosen after an interim look at those 3 seeds; on the planned criterion the picture is mixed (A behind at round 1, level at round 2, ahead from round 3). Changed before any training result: Arm B's answer-key fallback was split off into Arm B+key, and the probe was raised from 32 to 64 problems per length. Added after seeing results: seeds 3–9, the paired tests and sensitivity checks, Arm C (range chosen with hindsight), the 11–20-digit evaluation, the accuracy-against-tokens comparison, the sum-9 analysis and the 16-token-cap check. A token-budget sweep was drafted and dropped after a one-seed pilot; it is archived in [`archive/budget_sweep/`](archive/budget_sweep/README.md). Three Arm A runs were resumed after interruptions (seeds 0, 4, 7) and Arm B seed 2 was rerun from the start. The full table is in section R8 of the report.
 
-## Roadmap
+## Limitations
 
-- [x] Week 1, days 1–2: generator, checker, frozen test set
-- [x] Baseline accuracy per difficulty for the untrained model
-- [x] Days 3–4: Arm A loop, one round end to end
-- [x] Days 5–6: Arm B with a matched budget (plus Arm B+key reference)
-- [x] Day 7: 10 rounds of the first three arms, plots
-- [x] Seeds 1 and 2
-- [x] Seeds 3–9, with a watchdog that restarts hung runs (`scripts/run_queue.py`)
-- [x] Test why Arm A wins: fixed curriculum on long sums only (Arm C)
-- [ ] A longer difficulty range (e.g. 2–20 digits), where a fixed range is harder to choose
-- [ ] Run past round 10, to see whether Arm C's final-round lead over Arm A lasts
-- [ ] Steadier training: keep optimizer state between rounds or lower the learning rate
-- [ ] v2: the model writes its own problems, not only picks the difficulty
+Equal examples are not equal supervision: the loss is on answer tokens, and the mean operand length of training examples is 8.6 digits for A, 9.0 for C and 6.0 for B and B+key. Overall accuracy weights the nine lengths equally, and 2–4 digits are near the ceiling for every arm, so the gaps come from the longer lengths where A and C train. The planned secondary outcome (longest length with at least 50% accuracy) reaches the 10-digit ceiling by round 1–6 on every run, so it can't separate the arms. Also: one model (Qwen2.5-0.5B-Instruct), one task (addition), LoRA only, float16 (baseline) and float32 (training) on Apple MPS, one held-out test set, a 10-digit ceiling that Arm A's edge reached by round 2–4, Arm C's range chosen with hindsight and its higher draw limit, uncorrected multiple comparisons, a 16-token evaluation cap (checked after the fact for round 10 only: of 72,000 replies, 271 reached the cap and none lost any part of the number), interrupted runs, and ten seeds. Details in section R9 of the report.
+
+## Reproducing
+
+**Environment.** Python 3.12 with [uv](https://docs.astral.sh/uv/); versions are pinned in `uv.lock` (torch 2.15.0, transformers 5.22.1, peft 0.21.2 at the time of the runs). Runs on CPU, Apple Silicon (MPS) or CUDA. The model weights (Qwen/Qwen2.5-0.5B-Instruct) download from Hugging Face on first use. No API keys are needed.
+
+**Hardware used.** Apple M4 Pro, 24 GB unified memory, MPS. Training and every round's evaluation run in float32; the untrained baseline in `scripts/baseline.py` runs in float16. Greedy replies can differ slightly on other hardware or precisions.
+
+```bash
+uv sync --extra train                                  # torch, transformers, peft
+uv run pytest                                          # unit tests
+
+uv run python scripts/make_test_set.py                 # frozen held-out set (already in data/)
+uv run python scripts/baseline.py                      # untrained model, ~30 s
+
+uv run python scripts/run_arm.py --arm a --seed 0      # one arm, one seed, 10 rounds
+uv run python scripts/run_queue.py --seeds 0-9 --arms a,b,bkey,c   # everything, restarting hung runs
+
+# analyses on the finished runs (no training)
+uv run python scripts/baseline_long.py --max-digits 20                # untrained model on 2-20 digits
+uv run --with scipy python scripts/eval_generalisation.py            # round-10 adapters on 11-20 digits
+uv run python scripts/check_token_cap.py                              # 16-token cap check
+uv run --with scipy python scripts/compute_vs_tokens.py              # accuracy against tokens
+uv run --with scipy --with statsmodels python scripts/sum9_check.py  # sum-9 columns
+uv run python scripts/build_report.py                                 # rebuild reports/baseline.html
+```
+
+**Runtime on the M4 Pro.** One 10-round run takes about 18–28 minutes (B+key 18, A 24, B 26, C 28), so all 40 runs take about 16 hours. The 11–20-digit evaluation takes about 1.5 minutes per adapter (about an hour in all), and the token-cap check about 35 seconds per adapter.
+
+Budget mode (`run_arm.py --token-budget N`, from the archived sweep) is off by default; without the flag, runs follow the original fill-the-plan path.
+
+## Where things live
+
+| Path | Contents |
+| --- | --- |
+| `reports/baseline.html` | The report: untrained baseline (Report tab), trained results (Ten rounds tab), every baseline reply (Samples tab). Built from `reports/baseline.template.html` and `results/report_data.json` by `scripts/build_report.py`. |
+| `results/baseline.json` | Every untrained-model reply on the held-out set. |
+| `results/baseline_20.json`, `data/test_set_20.jsonl` | Untrained model on 2–20 digits, and the extended test set (2–10 identical to `data/test_set.jsonl`). |
+| `results/generalisation_11_20.json` | Round-10 adapters on 11–20 digits. |
+| `results/compute_vs_tokens.json` | Accuracy against cumulative tokens (exploratory). |
+| `results/sum9_check.json` | Sum-9 column analysis of the baseline (exploratory). |
+| `results/token_cap_check.json` | 16-token cap check. |
+| `results/report_data.json` | Per-round, per-seed results and baseline data that the report's charts read. |
+| `runs/` (gitignored) | Per-run logs (`runs/arm_<x>/seed<N>/log.jsonl`) and LoRA adapters for every round. Too large to commit; regenerate with the commands above. |
+| `archive/budget_sweep/` | The dropped token-budget sweep: draft plan, pilot script and pilot logs. |
+
+```
+src/selfcurr/
+  tasks.py        problem generator, prompt format, answer parser, checker
+  curriculum.py   edge selection (Arm A) and fixed mixes (Arms B and C)
+  config.py       experiment settings
+  model.py        model loading, batched generation, evaluation
+  collect.py      draws problems per plan, keeps checker-verified answers (and budget mode)
+  train.py        LoRA setup and one training round (loss on the answer only)
+scripts/          the commands above, plus watch.py (terminal view of running arms)
+tests/            unit tests
+```
+
+## License
+
+MIT, see [LICENSE](LICENSE).

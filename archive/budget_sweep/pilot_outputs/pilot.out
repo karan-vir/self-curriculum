@@ -1,0 +1,13 @@
+=== 05:33 budget 4125 arm a
+=== 05:41 exit 0 budget 4125 arm a
+=== 05:41 budget 4125 arm b
+=== 05:51 exit 0 budget 4125 arm b
+=== 05:51 budget 4125 arm c
+=== 06:02 exit 0 budget 4125 arm c
+=== 06:02 budget 213093 arm a
+=== 06:26 exit 0 budget 213093 arm a
+=== 06:26 budget 213093 arm b
+=== 06:53 exit 0 budget 213093 arm b
+=== 06:53 budget 213093 arm c
+=== 07:26 exit 0 budget 213093 arm c
+=== 07:26 pilot done

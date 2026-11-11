@@ -1,0 +1,8 @@
+W1105 05:30:04.805000 38658 torch/distributed/elastic/multiprocessing/redirects.py:35] NOTE: Redirects are currently not supported in MacOs.
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Loading weights: 100%|██████████| 290/290 [00:00<00:00, 4897.52it/s]
+<repo>/.venv/lib/python3.12/site-packages/peft/utils/save_and_load.py:313: UserWarning: Could not find a config file in Qwen/Qwen2.5-0.5B-Instruct - will assume that the vocabulary was not modified.
+  warnings.warn(
+arm A · seed 1 · 1 rounds · device mps · out runs/budget_pilot/default_check/arm_a/seed1
+round 0 · held-out 43.9% · 2:92% 3:88% 4:74% 5:58% 6:40% 7:24% 8:8% 9:10% 10:3%
+round 1 · probe 2:95% 3:86% 4:75% 5:55% 6:31% 7:20% 8:9% 9:5% 10:5% · edge [5, 6] · kept 512 (shortfall 0, fallback 0) · loss 0.0896→0.0389 · held-out 55.9% · 2:96% 3:88% 4:82% 5:71% 6:66% 7:62% 8:18% 9:18% 10:2% · {'plan': 10.6, 'collect': 75.2, 'train': 21.8, 'eval': 34.2}
+done in 176s · log runs/budget_pilot/default_check/arm_a/seed1/log.jsonl

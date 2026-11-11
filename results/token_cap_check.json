@@ -1,0 +1,205 @@
+{
+ "what": "round-10 held-out replies (data/test_set.jsonl, 1,800 problems) re-generated greedily with 32 new tokens",
+ "reach_cap": "no end-of-turn token within the first 16 generated tokens",
+ "lose_number": "first integer parsed from the first 16 tokens differs from the one parsed from 32 tokens",
+ "correctness_changes": "replies whose correctness differs between 16 and 32 tokens",
+ "arms": {
+  "a": {
+   "replies": 18000,
+   "reach_cap": 1,
+   "lose_number": 0,
+   "correctness_changes": 0,
+   "by_seed": {
+    "0": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "1": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "2": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "3": {
+     "reach_cap": 1,
+     "lose_number": 0
+    },
+    "4": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "5": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "6": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "7": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "8": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "9": {
+     "reach_cap": 0,
+     "lose_number": 0
+    }
+   }
+  },
+  "b": {
+   "replies": 18000,
+   "reach_cap": 49,
+   "lose_number": 0,
+   "correctness_changes": 0,
+   "by_seed": {
+    "0": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "1": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "2": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "3": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "4": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "5": {
+     "reach_cap": 49,
+     "lose_number": 0
+    },
+    "6": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "7": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "8": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "9": {
+     "reach_cap": 0,
+     "lose_number": 0
+    }
+   }
+  },
+  "bkey": {
+   "replies": 18000,
+   "reach_cap": 221,
+   "lose_number": 0,
+   "correctness_changes": 0,
+   "by_seed": {
+    "0": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "1": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "2": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "3": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "4": {
+     "reach_cap": 221,
+     "lose_number": 0
+    },
+    "5": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "6": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "7": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "8": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "9": {
+     "reach_cap": 0,
+     "lose_number": 0
+    }
+   }
+  },
+  "c": {
+   "replies": 18000,
+   "reach_cap": 0,
+   "lose_number": 0,
+   "correctness_changes": 0,
+   "by_seed": {
+    "0": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "1": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "2": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "3": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "4": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "5": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "6": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "7": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "8": {
+     "reach_cap": 0,
+     "lose_number": 0
+    },
+    "9": {
+     "reach_cap": 0,
+     "lose_number": 0
+    }
+   }
+  }
+ },
+ "sanity_first16_vs_logged": {
+  "checked": 360,
+  "mismatches": []
+ },
+ "examples_losing_number": []
+}

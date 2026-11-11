@@ -16,6 +16,16 @@ precision as training so every round is compared like for like.
 
 Writes runs/arm_<x>/seed<N>/log.jsonl (one line per round) and the LoRA
 adapter after each round.
+
+Token-budget mode (Arms A, B and C only) samples until a per-round token budget
+is spent, counting probes, instead of until the plan is filled:
+
+    uv run python scripts/run_arm.py --arm a --seed 0 --token-budget 4125
+
+It writes to runs/budget_<budget>/arm_<x>/seed<N>/ unless --out says otherwise,
+never into runs/arm_<x>/, and will not overwrite a log unless resuming. Its
+console output leaves out held-out accuracy, so a pilot can be checked blind;
+accuracy is still in log.jsonl.
 """
 
 from __future__ import annotations
@@ -29,7 +39,7 @@ from pathlib import Path
 
 import torch
 
-from selfcurr.collect import collect
+from selfcurr.collect import collect, collect_budget
 from selfcurr.config import Config
 from selfcurr.curriculum import fixed_curriculum_plan, select_edge, self_curriculum_plan
 from selfcurr.model import evaluate, generate, load_model, load_test_set, pick_device
@@ -69,6 +79,20 @@ def gpu_gb() -> float | None:
     return None
 
 
+def check_budget_run(ap: argparse.ArgumentParser, arm: str, budget: int, out: Path, resume: bool) -> None:
+    """Budget runs must never touch the original results."""
+    if arm == "bkey":
+        ap.error("--token-budget is for arms a, b and c")
+    if budget <= 0:
+        ap.error("--token-budget must be positive")
+    runs = ROOT / "runs"
+    if out.resolve().is_relative_to(runs) and out.resolve().relative_to(runs).parts[:1] != () and out.resolve().relative_to(runs).parts[0].startswith("arm_"):
+        ap.error(f"--token-budget must not write into {out}: runs/arm_* holds the original results")
+    log = out / "log.jsonl"
+    if not resume and log.exists() and log.stat().st_size:
+        ap.error(f"{log} already has rows; pass --resume or choose another --out")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--arm", choices=["a", "b", "bkey", "c"], required=True)
@@ -76,11 +100,17 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--resume", action="store_true", help="continue from the last round saved in --out")
+    ap.add_argument("--token-budget", type=int, default=None, help="tokens per round; default: Config.token_budget")
     args = ap.parse_args()
 
     cfg = Config()
+    budget = args.token_budget if args.token_budget is not None else cfg.token_budget
     rounds = args.rounds or cfg.rounds
-    out = args.out or ROOT / "runs" / f"arm_{args.arm}" / f"seed{args.seed}"
+    if budget is None:
+        out = args.out or ROOT / "runs" / f"arm_{args.arm}" / f"seed{args.seed}"
+    else:
+        out = args.out or ROOT / "runs" / f"budget_{budget}" / f"arm_{args.arm}" / f"seed{args.seed}"
+        check_budget_run(ap, args.arm, budget, out, args.resume)
     out.mkdir(parents=True, exist_ok=True)
     log_path = out / "log.jsonl"
     done = [json.loads(l) for l in log_path.read_text().splitlines() if l.strip()] if args.resume and log_path.exists() else []
@@ -102,7 +132,8 @@ def main() -> None:
     else:
         model = add_lora(model, cfg)
     print(f"arm {args.arm.upper()} · seed {args.seed} · {rounds} rounds · device {device} · out {out}"
-          + (f" · resuming after round {start}" if start else ""))
+          + (f" · resuming after round {start}" if start else "")
+          + (f" · token budget {budget}" if budget is not None else ""))
 
     def log(row: dict) -> None:
         with log_path.open("a") as f:
@@ -112,7 +143,8 @@ def main() -> None:
     if not start:
         acc, records = evaluate(model, tok, test)
         log({"arm": args.arm, "round": 0, "eval": acc, "eval_overall": overall(records), "seconds": round(time.time() - t0, 1)})
-        print(f"round 0 · held-out {overall(records):.1%} · {fmt_acc(acc)}")
+        if budget is None:
+            print(f"round 0 · held-out {overall(records):.1%} · {fmt_acc(acc)}")
         free_memory()
 
     for r in range(start + 1, rounds + 1):
@@ -131,14 +163,30 @@ def main() -> None:
         times["plan"] = round(time.time() - t, 1)
 
         t = time.time()
-        sample_fn = lambda ps: generate(  # noqa: E731
-            model, tok, ps, temperature=cfg.sample_temperature, num_samples=cfg.samples_per_problem, usage=usage
-        )
-        col = collect(
-            sample_fn, plan, rng, exclude=test_keys,
-            batch_size=cfg.collect_batch, fallback=args.arm == "bkey",
-            max_batches=cfg.hard_max_batches if args.arm == "c" else cfg.collect_max_batches,
-        )
+        if budget is None:
+            sample_fn = lambda ps: generate(  # noqa: E731
+                model, tok, ps, temperature=cfg.sample_temperature, num_samples=cfg.samples_per_problem, usage=usage
+            )
+            col = collect(
+                sample_fn, plan, rng, exclude=test_keys,
+                batch_size=cfg.collect_batch, fallback=args.arm == "bkey",
+                max_batches=cfg.hard_max_batches if args.arm == "c" else cfg.collect_max_batches,
+            )
+        else:
+            def counted_sample_fn(ps):
+                counts: list[int] = []
+                completions = generate(
+                    model, tok, ps, temperature=cfg.sample_temperature, num_samples=cfg.samples_per_problem,
+                    token_counts=counts,
+                )
+                return completions, counts
+
+            # the probe is charged in full; what is left, if anything, pays for sampling
+            probe_tokens = usage.get("generated_tokens", 0)
+            col = collect_budget(
+                counted_sample_fn, plan, rng, exclude=test_keys, budget=budget - probe_tokens, batch_size=cfg.collect_batch,
+            )
+            usage["generated_tokens"] = probe_tokens + col.spent
         times["collect"] = round(time.time() - t, 1)
         free_memory()
 
@@ -173,6 +221,28 @@ def main() -> None:
             "gpu_gb": gpu_gb(),
             "resumed": bool(start),
         }
+        if budget is not None:
+            row["budget"] = {
+                "token_budget": budget,
+                "tokens_spent": row["generated_tokens"],
+                "probe_tokens": probe_tokens,
+                "sample_tokens": col.spent,
+                "uncharged_tokens": col.uncharged,
+                "uncharged_problems": col.uncharged_problems,
+                "examples": len(col.examples),
+                "problems": sum(s.problems for s in col.stats.values()),
+                "tries": sum(s.tries for s in col.stats.values()),
+                "tokens_by_length": col.tokens_by_length,
+                "stop": col.stop,
+                "seconds_total": round(sum(times.values()), 1),
+            }
+            print(
+                f"round {r} · plan {plan} · tokens {row['generated_tokens']}/{budget} (probe {probe_tokens})"
+                f" · kept {len(col.examples)} · problems {row['budget']['problems']} · stop {col.stop} · {times}",
+                flush=True,
+            )
+            log(row)
+            continue
         log(row)
         chosen = f"probe {fmt_acc(probe_acc)} · edge {edge}" if probe_acc else f"plan {plan}"
         print(

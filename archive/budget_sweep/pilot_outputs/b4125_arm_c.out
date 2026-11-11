@@ -1,0 +1,16 @@
+W1105 05:51:59.271000 38874 torch/distributed/elastic/multiprocessing/redirects.py:35] NOTE: Redirects are currently not supported in MacOs.
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Loading weights:   0%|          | 1/290 [00:00<01:30,  3.20it/s]Loading weights: 100%|██████████| 290/290 [00:00<00:00, 815.48it/s]
+<repo>/.venv/lib/python3.12/site-packages/peft/utils/save_and_load.py:313: UserWarning: Could not find a config file in Qwen/Qwen2.5-0.5B-Instruct - will assume that the vocabulary was not modified.
+  warnings.warn(
+arm C · seed 0 · 10 rounds · device mps · out runs/budget_pilot/b4125/arm_c/seed0 · token budget 4125
+round 1 · plan {8: 170, 9: 171, 10: 171} · tokens 4108/4125 (probe 0) · kept 12 · problems 96 · stop budget · {'plan': 0.0, 'collect': 13.0, 'train': 0.9, 'eval': 37.2}
+round 2 · plan {8: 171, 9: 171, 10: 170} · tokens 4091/4125 (probe 0) · kept 20 · problems 97 · stop budget · {'plan': 0.0, 'collect': 12.7, 'train': 1.2, 'eval': 36.8}
+round 3 · plan {8: 171, 9: 171, 10: 170} · tokens 4101/4125 (probe 0) · kept 16 · problems 95 · stop budget · {'plan': 0.0, 'collect': 12.2, 'train': 1.0, 'eval': 37.8}
+round 4 · plan {8: 171, 9: 170, 10: 171} · tokens 4125/4125 (probe 0) · kept 19 · problems 94 · stop budget · {'plan': 0.0, 'collect': 15.4, 'train': 1.0, 'eval': 44.2}
+round 5 · plan {8: 171, 9: 171, 10: 170} · tokens 4075/4125 (probe 0) · kept 3 · problems 65 · stop budget · {'plan': 0.0, 'collect': 12.6, 'train': 0.2, 'eval': 44.6}
+round 6 · plan {8: 171, 9: 170, 10: 171} · tokens 4117/4125 (probe 0) · kept 10 · problems 72 · stop budget · {'plan': 0.0, 'collect': 13.0, 'train': 0.6, 'eval': 47.2}
+round 7 · plan {8: 171, 9: 171, 10: 170} · tokens 4100/4125 (probe 0) · kept 6 · problems 65 · stop budget · {'plan': 0.0, 'collect': 12.5, 'train': 0.4, 'eval': 42.8}
+round 8 · plan {8: 171, 9: 171, 10: 170} · tokens 4114/4125 (probe 0) · kept 30 · problems 68 · stop budget · {'plan': 0.0, 'collect': 14.0, 'train': 1.6, 'eval': 42.0}
+round 9 · plan {8: 171, 9: 171, 10: 170} · tokens 4075/4125 (probe 0) · kept 27 · problems 67 · stop budget · {'plan': 0.0, 'collect': 12.3, 'train': 1.5, 'eval': 48.9}
+round 10 · plan {8: 171, 9: 170, 10: 171} · tokens 4100/4125 (probe 0) · kept 28 · problems 66 · stop budget · {'plan': 0.0, 'collect': 12.3, 'train': 1.5, 'eval': 47.6}
+done in 615s · log runs/budget_pilot/b4125/arm_c/seed0/log.jsonl

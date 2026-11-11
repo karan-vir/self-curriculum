@@ -9,3 +9,9 @@ __pycache__/
 runs/
 checkpoints/
 wandb/
+
+# model weights: never commit adapters or checkpoints, including archived ones
+*.safetensors
+*.bin
+*.pt
+archive/**/round*/

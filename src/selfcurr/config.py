@@ -36,6 +36,11 @@ class Config:
     hard_digits: list[int] = field(default_factory=lambda: [8, 9, 10])
     hard_max_batches: int = 200
 
+    # Token-budget mode: when set, every round samples until this many generated
+    # tokens are spent (probes included) instead of until the plan is filled.
+    # None keeps the original fill-the-plan behaviour. See collect_budget.
+    token_budget: int | None = None
+
     # LoRA
     lora_r: int = 16
     lora_alpha: int = 32
